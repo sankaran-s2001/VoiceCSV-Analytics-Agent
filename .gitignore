@@ -1,0 +1,38 @@
+# Python virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment and sensitive keys
+.env
+!.env.example
+
+# Local SQLite databases and temp files
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+!data/.gitkeep
+
+# Temporary upload files
+tmp/
+*.tmp
+
+# Application logs
+logs/*.log
+!logs/.gitkeep
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

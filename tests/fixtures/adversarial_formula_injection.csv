@@ -1,0 +1,5 @@
+id,user_input,score
+1,=CMD('calc.exe'),10
+2,+SUM(A1:A10),20
+3,-2+3*4,30
+4,@SUM(B1:B2),40

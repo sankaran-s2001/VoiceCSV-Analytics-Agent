@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoiceCSV Analytics Agent</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo-container">
+          <img src="/assets/nobeth-analytics.png" alt="Nobeth Analytics" class="brand-logo-img">
+        </div>
+        <div class="brand-text-group">
+          <span class="brand-company-tag">Nobeth Analytics</span>
+          <h1 class="brand-title">VoiceCSV <span class="gradient-text">Analytics Agent</span></h1>
+          <p class="brand-subtitle">Voice-Guided SQLite Business Intelligence powered by Gemini</p>
+        </div>
+      </div>
+
+      <div class="header-badges">
+        <div id="serverBadge" class="status-badge badge-pending">
+          <span class="status-dot"></span>
+          <span class="badge-text">Connecting...</span>
+        </div>
+        <div id="geminiBadge" class="status-badge badge-pending">
+          <span class="status-dot"></span>
+          <span class="badge-text">AI: Checking...</span>
+        </div>
+        <div id="datasetBadge" class="status-badge badge-neutral">
+          <span class="status-dot"></span>
+          <span class="badge-text">No Dataset</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Left Column: Data Management -->
+      <section class="panel-column left-column">
+        <!-- CSV Upload Card -->
+        <div class="card upload-card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-step">1</span>
+              <h2 class="card-title">Upload Dataset</h2>
+            </div>
+            <span class="card-badge">CSV Only &bull; Max 100MB</span>
+          </div>
+
+          <div id="dropZone" class="drop-zone">
+            <input type="file" id="fileInput" accept=".csv" class="hidden-input">
+            <div class="drop-zone-content">
+              <div class="upload-icon-wrapper">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </div>
+              <p class="drop-prompt">Drag & drop your CSV file here</p>
+              <p class="drop-subprompt">or click to browse your files</p>
+              <button type="button" id="browseBtn" class="btn btn-secondary btn-sm">Browse Files</button>
+            </div>
+            <div id="uploadProgress" class="upload-progress-container hidden">
+              <div class="spinner"></div>
+              <p id="uploadProgressText" class="progress-text">Processing and loading into SQLite...</p>
+              <div id="uploadPipelineSteps" class="upload-pipeline-steps"></div>
+            </div>
+          </div>
+
+          <div id="fileInfoBar" class="file-info-bar hidden">
+            <div class="file-details">
+              <span class="file-name" id="selectedFileName">filename.csv</span>
+              <span class="file-size" id="selectedFileSize">0 KB</span>
+            </div>
+            <button type="button" id="reuploadBtn" class="btn-text">Replace</button>
+          </div>
+        </div>
+
+        <!-- Dataset Overview & Schema Card -->
+        <div id="datasetOverviewCard" class="card dataset-card hidden">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-step">2</span>
+              <h2 class="card-title">Dataset Overview</h2>
+            </div>
+            <div class="dataset-header-actions">
+              <button type="button" id="openFullExplorerBtn" class="btn btn-secondary btn-sm full-explorer-btn" title="Open spreadsheet-like full dataset explorer">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="3" y1="9" x2="21" y2="9"></line>
+                  <line x1="3" y1="15" x2="21" y2="15"></line>
+                  <line x1="9" y1="3" x2="9" y2="21"></line>
+                  <line x1="15" y1="3" x2="15" y2="21"></line>
+                </svg>
+                <span>View Full Dataset</span>
+              </button>
+              <span id="activeTableName" class="table-tag">uploaded_data</span>
+            </div>
+          </div>
+
+          <!-- Quick Metrics Bar -->
+          <div class="metrics-grid">
+            <div class="metric-box">
+              <span class="metric-label">Total Rows</span>
+              <span class="metric-value" id="overviewRows">-</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-label">Columns</span>
+              <span class="metric-value" id="overviewCols">-</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-label">Storage Engine</span>
+              <span class="metric-value accent-cyan">SQLite</span>
+            </div>
+          </div>
+
+          <!-- Dataset Tabs -->
+          <div class="tabs-header">
+            <button type="button" class="tab-btn active" data-tab="previewTab">Data Preview (5 Rows)</button>
+            <button type="button" class="tab-btn" data-tab="schemaTab">Schema & Types</button>
+          </div>
+
+          <div class="tab-content">
+            <!-- Preview Tab -->
+            <div id="previewTab" class="tab-pane active">
+              <div class="table-wrapper scrollable-x">
+                <table id="previewTable" class="data-table">
+                  <thead id="previewHead"></thead>
+                  <tbody id="previewBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Schema Tab -->
+            <div id="schemaTab" class="tab-pane">
+              <div class="schema-list-wrapper scrollable-y">
+                <table class="data-table schema-table">
+                  <thead>
+                    <tr>
+                      <th>Column</th>
+                      <th>SQLite Type</th>
+                      <th>Nulls</th>
+                    </tr>
+                  </thead>
+                  <tbody id="schemaListBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Privacy & Local Processing Notice -->
+        <div class="privacy-note">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span>Data stays in your local SQLite database. Only schema context and minimal query results are shared with Gemini for SQL generation and summary.</span>
+        </div>
+      </section>
+
+      <!-- Right Column: Query, Insights, and Results -->
+      <section class="panel-column right-column">
+        <!-- Question Formulation Card -->
+        <div class="card query-card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-step">3</span>
+              <h2 class="card-title">Ask Your Data</h2>
+            </div>
+            <div class="speech-status-indicator" id="sttStatus">
+              <span class="mic-dot"></span>
+              <span id="sttStatusText">Ready</span>
+            </div>
+          </div>
+
+          <div class="query-input-wrapper">
+            <textarea
+              id="questionInput"
+              class="query-textarea"
+              placeholder="Type or speak a question about your data (e.g., 'What are the top 5 product categories by revenue?')"
+              rows="3"
+            ></textarea>
+            
+            <div class="query-actions-bar">
+              <div class="query-left-actions">
+                <button type="button" id="micBtn" class="btn btn-icon mic-btn" title="Speak question with Microphone">
+                  <svg id="micIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="22"></line>
+                    <path d="M8 22h8"></path>
+                  </svg>
+                  <span id="micLabel">Speak</span>
+                </button>
+              </div>
+
+              <button type="button" id="runQueryBtn" class="btn btn-primary">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>Run Analysis</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Suggestion Chips -->
+          <div class="suggestion-chips-container">
+            <span class="chips-label">Quick Prompts:</span>
+            <div class="chips-list">
+              <button type="button" class="chip-btn" data-query="What is the total number of records?">Total rows</button>
+              <button type="button" class="chip-btn" data-query="Show the top 5 records by the primary numeric column">Top 5 values</button>
+              <button type="button" class="chip-btn" data-query="What are the distinct categories and their counts?">Category breakdown</button>
+              <button type="button" class="chip-btn" data-query="Calculate the average, minimum, and maximum of numeric columns">Summary stats</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progressive Pipeline Execution State -->
+        <div id="executionPipeline" class="card pipeline-card hidden">
+          <div class="pipeline-header">
+            <div class="spinner-sm"></div>
+            <span id="pipelineStatusText" class="pipeline-status">Analyzing request...</span>
+          </div>
+          <div class="pipeline-steps" id="pipelineStepsContainer">
+            <div class="step-item active" id="pStep1">1. Reflecting Schema</div>
+            <div class="step-item" id="pStep2">2. Gemini SQL</div>
+            <div class="step-item" id="pStep3">3. Safety Check</div>
+            <div class="step-item" id="pStep4">4. SQLite Read-Only</div>
+            <div class="step-item" id="pStep5">5. AI Executive Summary</div>
+          </div>
+        </div>
+
+        <!-- Notification / Error Box -->
+        <div id="errorBanner" class="alert-banner alert-error hidden">
+          <div class="alert-content">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span id="errorMessage">Error message details appear here.</span>
+          </div>
+          <button type="button" id="closeErrorBtn" class="alert-close">&times;</button>
+        </div>
+
+        <!-- Analysis Results Section -->
+        <div id="resultsSection" class="results-section hidden">
+          <!-- Executive Insights Card -->
+          <div class="card insights-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <span class="insights-sparkle">✦</span>
+                <h3 class="card-title">Executive Takeaway</h3>
+              </div>
+              <div class="tts-controls">
+                <button type="button" id="readSummaryBtn" class="btn btn-secondary btn-sm" title="Listen to Executive Summary">
+                  <svg id="ttsIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                  </svg>
+                  <span id="ttsBtnText">Listen</span>
+                </button>
+                <button type="button" id="stopSummaryBtn" class="btn btn-ghost btn-sm hidden" title="Stop Audio">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="6" y="6" width="12" height="12"></rect>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="insights-body">
+              <p id="executiveSummaryText" class="executive-summary-text"></p>
+            </div>
+          </div>
+
+          <!-- Generated SQL Panel -->
+          <div class="card sql-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="16 18 22 12 16 6"></polyline>
+                  <polyline points="8 6 2 12 8 18"></polyline>
+                </svg>
+                <h3 class="card-title">Generated SQL Query</h3>
+              </div>
+              <div class="sql-meta-group">
+                <span id="healBadge" class="heal-badge hidden">Self-Healed</span>
+                <button type="button" id="copySqlBtn" class="btn btn-secondary btn-sm" title="Copy SQL statement to clipboard">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span id="copySqlText">Copy SQL</span>
+                </button>
+              </div>
+            </div>
+            <pre class="sql-code-block"><code id="sqlCode"></code></pre>
+          </div>
+
+          <!-- Query Results Table -->
+          <div class="card results-table-card">
+            <div class="card-header">
+              <div class="card-title-group">
+                <h3 class="card-title">Query Results</h3>
+                <span id="resultCountBadge" class="badge-count">0 rows</span>
+              </div>
+              <div id="cappedNotice" class="capped-notice hidden">
+                <span>Row limit reached (capped for performance)</span>
+              </div>
+            </div>
+
+            <div class="table-wrapper scrollable-x">
+              <table id="resultsTable" class="data-table">
+                <thead id="resultsHead"></thead>
+                <tbody id="resultsBody"></tbody>
+              </table>
+            </div>
+
+            <!-- Table Pagination Bar -->
+            <div class="pagination-bar" id="paginationBar">
+              <span id="pageInfo" class="page-info">Page 1 of 1</span>
+              <div class="pagination-controls">
+                <button type="button" id="prevPageBtn" class="btn btn-ghost btn-sm" disabled>&larr; Prev</button>
+                <button type="button" id="nextPageBtn" class="btn btn-ghost btn-sm" disabled>Next &rarr;</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Execution Metrics Footer Bar -->
+          <div class="metrics-footer-bar">
+            <div class="metric-pill">
+              <span class="pill-label">Op ID:</span>
+              <span class="pill-value accent-cyan" id="metricOpId">-</span>
+            </div>
+            <div class="metric-pill">
+              <span class="pill-label">SQL Gen:</span>
+              <span class="pill-value" id="metricSqlTime">0 ms</span>
+            </div>
+            <div class="metric-pill">
+              <span class="pill-label">DB Exec:</span>
+              <span class="pill-value" id="metricDbTime">0 ms</span>
+            </div>
+            <div class="metric-pill">
+              <span class="pill-label">Summary Gen:</span>
+              <span class="pill-value" id="metricSummaryTime">0 ms</span>
+            </div>
+            <div class="metric-pill">
+              <span class="pill-label">Total Time:</span>
+              <span class="pill-value" id="metricTotalTime">0 ms</span>
+            </div>
+            <div class="metric-pill">
+              <span class="pill-label">Repairs:</span>
+              <span class="pill-value" id="metricRepairs">0</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Full CSV Dataset Explorer Modal Overlay -->
+  <div id="datasetExplorerModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="explorerTitle">
+    <div class="modal-container explorer-modal-container">
+      <!-- Explorer Header -->
+      <div class="explorer-modal-header">
+        <div class="explorer-title-group">
+          <div class="explorer-icon-box">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="3" y1="9" x2="21" y2="9"></line>
+              <line x1="3" y1="15" x2="21" y2="15"></line>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+              <line x1="15" y1="3" x2="15" y2="21"></line>
+            </svg>
+          </div>
+          <div>
+            <div class="explorer-meta-row">
+              <h2 id="explorerTitle" class="explorer-modal-title">Full Dataset Explorer</h2>
+              <span id="explorerFileName" class="table-tag">uploaded_data.csv</span>
+              <span class="explorer-readonly-pill">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                Read-Only View
+              </span>
+            </div>
+            <p class="explorer-modal-subtitle" id="explorerMetaSummary">
+              <span id="expTotalRows">0</span> total rows &bull; <span id="expTotalCols">0</span> columns
+            </p>
+          </div>
+        </div>
+        <button type="button" id="closeExplorerBtn" class="btn btn-icon btn-ghost modal-close-btn" title="Close Explorer (Esc)">&times;</button>
+      </div>
+
+      <!-- Explorer Interactive Toolbar -->
+      <div class="explorer-toolbar">
+        <div class="explorer-search-wrapper">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            id="explorerSearchInput"
+            class="explorer-search-input"
+            placeholder="Search all records & columns (e.g. customer, product, date, amount)..."
+            autocomplete="off"
+          />
+          <button type="button" id="clearSearchBtn" class="search-clear-btn hidden" title="Clear search">&times;</button>
+          <span id="explorerSearchCountBadge" class="search-count-badge hidden">0 matches</span>
+        </div>
+
+        <div class="explorer-toolbar-actions">
+          <div class="page-size-selector-group">
+            <label for="explorerPageSize">Rows:</label>
+            <select id="explorerPageSize" class="explorer-select">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+          </div>
+
+          <div class="explorer-pagination-controls">
+            <button type="button" id="expFirstBtn" class="btn btn-ghost btn-sm" title="First Page">&laquo; First</button>
+            <button type="button" id="expPrevBtn" class="btn btn-ghost btn-sm" title="Previous Page">&lsaquo; Prev</button>
+            <span id="expPageInfo" class="exp-page-info">Page 1 of 1</span>
+            <button type="button" id="expNextBtn" class="btn btn-ghost btn-sm" title="Next Page">Next &rsaquo;</button>
+            <button type="button" id="expLastBtn" class="btn btn-ghost btn-sm" title="Last Page">Last &raquo;</button>
+          </div>
+
+          <button type="button" id="expRefreshBtn" class="btn btn-secondary btn-sm" title="Refresh records">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Explorer Table Container with Horizontal & Vertical Scrolling -->
+      <div class="explorer-table-wrapper" id="explorerTableWrapper">
+        <div id="explorerLoadingOverlay" class="explorer-loading-overlay hidden">
+          <div class="spinner"></div>
+          <span>Fetching dataset rows...</span>
+        </div>
+
+        <table id="explorerDataTable" class="data-table explorer-table">
+          <thead id="explorerTableHead"></thead>
+          <tbody id="explorerTableBody"></tbody>
+        </table>
+
+        <div id="explorerEmptyState" class="explorer-empty-state hidden">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            <line x1="8" y1="11" x2="14" y2="11"></line>
+          </svg>
+          <p id="explorerEmptyMessage">No matching records found in this dataset.</p>
+          <button type="button" id="explorerResetSearchBtn" class="btn btn-secondary btn-sm">Clear Search</button>
+        </div>
+      </div>
+
+      <!-- Explorer Footer Bar -->
+      <div class="explorer-modal-footer">
+        <div class="explorer-footer-left">
+          <span id="explorerRangeText" class="explorer-footer-text">Showing 0–0 of 0 records</span>
+          <span id="explorerSortText" class="explorer-footer-hint">Default order (rowid ASC)</span>
+        </div>
+        <div class="explorer-footer-right">
+          <span class="explorer-keyboard-hint">Press <kbd>Esc</kbd> to exit &bull; Click column header to sort</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/js/stt.js"></script>
+  <script src="/js/tts.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>

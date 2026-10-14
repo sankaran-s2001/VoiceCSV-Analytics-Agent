@@ -1,0 +1,5 @@
+id,val1,val2,val3
+1,10.5,NaN,text
+2,,inf,
+3,-inf,50.0,None
+4,NULL,null, 

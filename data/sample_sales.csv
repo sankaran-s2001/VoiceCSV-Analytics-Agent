@@ -1,0 +1,16 @@
+transaction_id,order_date,customer_name,region,category,product,quantity,unit_price,revenue,profit,status
+TXN-1001,2025-01-05,Acme Corp,North America,Electronics,Wireless Headphones,15,89.99,1349.85,420.50,Completed
+TXN-1002,2025-01-07,Globex Inc,Europe,Furniture,Ergonomic Chair,8,249.50,1996.00,550.00,Completed
+TXN-1003,2025-01-10,Stark Tech,Asia-Pacific,Electronics,Ultra HD Monitor,12,399.00,4788.00,1250.00,Completed
+TXN-1004,2025-01-14,Wayne Enterprises,North America,Office Supplies,Premium Paper Pack,50,12.50,625.00,180.20,Completed
+TXN-1005,2025-01-19,Umbrella Corp,Europe,Electronics,Mechanical Keyboard,20,119.00,2380.00,720.00,Returned
+TXN-1006,2025-01-22,Cyberdyne Systems,Asia-Pacific,Furniture,Standing Desk,5,540.00,2700.00,810.00,Completed
+TXN-1007,2025-01-28,Initech LLC,North America,Electronics,USB-C Docking Station,25,75.00,1875.00,610.50,Completed
+TXN-1008,2025-02-02,Hooli,Europe,Office Supplies,Whiteboard Kit,10,45.00,450.00,135.00,Completed
+TXN-1009,2025-02-06,Pied Piper,North America,Electronics,Wireless Headphones,18,89.99,1619.82,510.20,Completed
+TXN-1010,2025-02-12,Massive Dynamic,Asia-Pacific,Furniture,Executive Chair,6,320.00,1920.00,480.00,Returned
+TXN-1011,2025-02-17,Soylent Corp,Europe,Office Supplies,Filing Cabinet,7,180.00,1260.00,340.00,Completed
+TXN-1012,2025-02-23,Wonka Industries,North America,Furniture,Standing Desk,10,540.00,5400.00,1620.00,Completed
+TXN-1013,2025-02-28,Acme Corp,Europe,Electronics,Ultra HD Monitor,8,399.00,3192.00,850.00,Completed
+TXN-1014,2025-03-03,Globex Inc,Asia-Pacific,Electronics,Mechanical Keyboard,14,119.00,1666.00,490.00,Completed
+TXN-1015,2025-03-09,Stark Tech,North America,Furniture,Ergonomic Chair,12,249.50,2994.00,820.00,Completed
