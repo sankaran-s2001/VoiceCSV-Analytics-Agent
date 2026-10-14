@@ -427,26 +427,26 @@ flowchart TD
         QueryRoute["POST /api/query"]
         PreviewRoute["GET /api/data/preview"]
         SchemaRoute["GET /api/schema"]
-        OpsRoute["GET /api/operations/{op_id}"]
+        OpsRoute["GET /api/operations/:op_id"]
         StaticMount["Static File Mounts (/css, /js, /assets)"]
     end
 
     subgraph ObservabilityLayer ["3. Telemetry Layer (backend/operations.py)"]
         OpTracker["Thread-Safe OperationTracker"]
-        Stages["Stage Telemetry & Durations (ms)"]
+        Stages["Stage Telemetry and Durations (ms)"]
     end
 
     subgraph IngestionLayer ["4. Data Engine (backend/db_engine.py)"]
-        Validator["Extension & Size Validator"]
-        PandasEngine["Pandas CSV Parser & Encoder"]
-        Normalizer["Header Normalizer & Identifier Escaper"]
+        Validator["Extension and Size Validator"]
+        PandasEngine["Pandas CSV Parser and Encoder"]
+        Normalizer["Header Normalizer and Identifier Escaper"]
         StagingTable["_staging_uploaded_data (Temporary Table)"]
         ActiveTable["uploaded_data (Active SQLite Table)"]
         Authorizer["Read-Only Authorizer Hook (_readonly_authorizer)"]
-        DiskDB[("data/analytics.db (Persistent Storage)")]
+        DiskDB[("data/analytics.db - Persistent Storage")]
     end
 
-    subgraph AILayer ["5. AI & Analytics Core"]
+    subgraph AILayer ["5. AI and Analytics Core"]
         Agent["AnalyticsAgent (backend/agent.py)"]
         SQLValidator["Token-Level SQL Safety Validator"]
         SelfHeal["Bounded Self-Healing Loop (Max 3 Repairs)"]
@@ -473,19 +473,19 @@ flowchart TD
     ActiveTable --- DiskDB
 
     QueryRoute -->|"Valid question string"| Agent
-    Agent -->|"Reflects column names & sample rows"| ActiveTable
-    Agent -->|"Sends schema context & question"| GeminiAPI
+    Agent -->|"Reflects column names and sample rows"| ActiveTable
+    Agent -->|"Sends schema context and question"| GeminiAPI
     GeminiAPI -->|"Returns candidate SQL string"| Agent
-    Agent -->|"Inspects tokens & prohibited words"| SQLValidator
+    Agent -->|"Inspects tokens and prohibited words"| SQLValidator
     SQLValidator -->|"Approved read-only SQL"| Authorizer
     Authorizer -->|"Executes SELECT against SQLite"| ActiveTable
 
     ActiveTable -->|"Execution error trigger"| SelfHeal
-    SelfHeal -->|"Sanitized error + schema prompt"| GeminiAPI
+    SelfHeal -->|"Sanitized error and schema prompt"| GeminiAPI
     SelfHeal -->|"Repaired candidate SQL"| SQLValidator
 
-    ActiveTable -->|"Query Result (columns + rows)"| Summarizer
-    Summarizer -->|"Top 10 rows + question prompt"| GeminiAPI
+    ActiveTable -->|"Query Result (columns and rows)"| Summarizer
+    Summarizer -->|"Top 10 rows and question prompt"| GeminiAPI
     GeminiAPI -->|"2-3 sentence business takeaway"| Summarizer
 
     Summarizer -->|"Summary text"| QueryRoute
@@ -594,19 +594,19 @@ The diagram below shows how the modules depend on and call one another:
 ```mermaid
 flowchart TD
     RunBat["run.bat"] -->|"Launches"| LauncherPy["launcher.py"]
-    LauncherPy -->|"Imports settings & runs"| MainPy["backend/main.py"]
+    LauncherPy -->|"Imports settings and runs"| MainPy["backend/main.py"]
     
     MainPy -->|"Imports settings"| ConfigPy["backend/config.py"]
     MainPy -->|"Tracks operations"| OpsPy["backend/operations.py"]
-    MainPy -->|"Ingests CSV & reflects schema"| DBEngine["backend/db_engine.py"]
+    MainPy -->|"Ingests CSV and reflects schema"| DBEngine["backend/db_engine.py"]
     MainPy -->|"Dispatches questions"| AgentPy["backend/agent.py"]
     MainPy -->|"Synthesizes takeaways"| SummarizerPy["backend/summarizer.py"]
-    MainPy -->|"Serves static files & SPA"| IndexHTML["frontend/index.html"]
+    MainPy -->|"Serves static files and SPA"| IndexHTML["frontend/index.html"]
 
     AgentPy -->|"Uses read-only execution"| DBEngine
-    AgentPy -->|"Loads API key & model"| ConfigPy
-    SummarizerPy -->|"Loads API key & model"| ConfigPy
-    DBEngine -->|"Resolves DB path & size limits"| ConfigPy
+    AgentPy -->|"Loads API key and model"| ConfigPy
+    SummarizerPy -->|"Loads API key and model"| ConfigPy
+    DBEngine -->|"Resolves DB path and size limits"| ConfigPy
     DBEngine -->|"Persists to"| SQLiteDB[("data/analytics.db")]
 
     IndexHTML -->|"Loads styles"| StyleCSS["frontend/css/style.css"]
@@ -624,18 +624,18 @@ Data correctness is the foundation of any analytics application. If headers are 
 
 ```mermaid
 flowchart TD
-    A["User selects CSV / Drag & Drop"] --> B["Stage 1: File Validation (Extension & Size)"]
-    B -->|"Invalid or >100MB"| Err1["Reject with 400/413 Error (Existing DB preserved)"]
-    B -->|"Valid"| C["Stage 2: Encoding Detection & CSV Parsing (Pandas)"]
+    A["User selects CSV / Drag and Drop"] --> B["Stage 1: File Validation (Extension and Size)"]
+    B -->|"Invalid or over 100MB"| Err1["Reject with 400 or 413 Error (Existing DB preserved)"]
+    B -->|"Valid"| C["Stage 2: Encoding Detection and CSV Parsing (Pandas)"]
     C -->|"Malformed text"| Err2["Reject with Parsing Error"]
-    C -->|"Parsed"| D["Stage 3: Header Normalization & Mapping"]
-    D --> E["Stage 4: Missing Value & Inf Profiling"]
+    C -->|"Parsed"| D["Stage 3: Header Normalization and Mapping"]
+    D --> E["Stage 4: Missing Value and Inf Profiling"]
     E --> F["Stage 5: Stage into _staging_uploaded_data"]
-    F --> G["Stage 6: Verify Row & Column Counts"]
-    G -->|"Mismatch"| Err3["Rollback & Drop Staging Table"]
+    F --> G["Stage 6: Verify Row and Column Counts"]
+    G -->|"Mismatch"| Err3["Rollback and Drop Staging Table"]
     G -->|"Verified"| H["Stage 7: Atomic Table Swap to uploaded_data"]
-    H --> I["Stage 8: Save Metadata JSON & Reflect Schema"]
-    I --> J["Stage 9: Update Dashboard UI & Enable Full Explorer"]
+    H --> I["Stage 8: Save Metadata JSON and Reflect Schema"]
+    I --> J["Stage 9: Update Dashboard UI and Enable Full Explorer"]
 ```
 
 ### Detailed Ingestion Stages
@@ -749,16 +749,16 @@ sequenceDiagram
     participant SQLite as SQLite DatabaseEngine
     participant Summary as ExecutiveSummarizer
 
-    User->>API: POST /api/query { question: "Top 5 products by sales" }
+    User->>API: POST /api/query (question: Top 5 products by sales)
     API->>Agent: answer_question(question)
     Agent->>SQLite: get_schema_info()
-    SQLite-->>Agent: Columns, Types & 3 sample rows
+    SQLite-->>Agent: Columns, Types and 3 sample rows
     Agent->>Gemini: Prompt (Question + Schema Context)
     Gemini-->>Agent: Raw SQL Candidate
     Agent->>Safety: validate_sql_safety(candidate)
     
     alt SQL is Unsafe or Prohibited
-        Safety-->>Agent: Security Error (e.g., "Prohibited keyword")
+        Safety-->>Agent: Security Error (e.g. Prohibited keyword)
         Agent->>Gemini: Repair Prompt (Sanitized Error + Schema)
         Gemini-->>Agent: Repaired SQL Candidate
         Agent->>Safety: Revalidate Repaired Candidate
@@ -768,18 +768,18 @@ sequenceDiagram
     Agent->>SQLite: execute_query_readonly(sql)
 
     alt SQLite Execution Error (e.g. misspelled column)
-        SQLite-->>Agent: OperationalError ("no such column")
+        SQLite-->>Agent: OperationalError (no such column)
         Agent->>Gemini: Repair Prompt (Error Message + Schema)
         Gemini-->>Agent: Corrected SQL
         Agent->>Safety: Validate Repaired SQL
         Agent->>SQLite: execute_query_readonly(repaired_sql)
     end
 
-    SQLite-->>Agent: Exact Result Rows & Column Names
+    SQLite-->>Agent: Exact Result Rows and Column Names
     Agent->>Summary: generate_summary(question, columns, rows)
     Summary->>Gemini: Summarization Prompt (Top 10 rows only)
     Gemini-->>Summary: 2-3 sentence executive takeaway
-    Summary-->>API: Summary Text & Latency
+    Summary-->>API: Summary Text and Latency
     API-->>User: JSON Response (SQL, Table Rows, Metrics, Summary)
 ```
 
@@ -799,20 +799,20 @@ Security is paramount when connecting an AI model to a database. VoiceCSV uses a
 
 ```mermaid
 flowchart TD
-    Candidate["Gemini Generates SQL Candidate"] --> Step1["Step 1: Markdown Strip & Comment Check"]
-    Step1 -->|Contains Comments -- or /* */| Block1["Reject: Comments Not Permitted"]
-    Step1 -->|Clean| Step2["Step 2: Statement Chaining Check"]
-    Step2 -->|Multiple Semicolons / Statements| Block2["Reject: Chained Statements Forbidden"]
-    Step2 -->|Single Statement| Step3["Step 3: Keyword & Token Whitelist Check"]
-    Step3 -->|Contains INSERT, UPDATE, DROP, PRAGMA, etc.| Block3["Reject: Prohibited Mutation Keyword"]
-    Step3 -->|Starts with SELECT or WITH| Step4["Step 4: Table Reference Validation"]
-    Step4 -->|References tables other than uploaded_data| Block4["Reject: Unauthorized Table Access"]
-    Step4 -->|Valid| Step5["Step 5: SQLite Read-Only Execution"]
-    Step5 -->|Execution Fails with Schema Error| RepairCheck{"Repairs < 3?"}
-    RepairCheck -->|Yes| Heal["Self-Healing: Send Error to Gemini for Repair"]
+    Candidate["Gemini Generates SQL Candidate"] --> Step1["Step 1: Markdown Strip and Comment Check"]
+    Step1 -->|"Contains SQL comments"| Block1["Reject: Comments Not Permitted"]
+    Step1 -->|"Clean"| Step2["Step 2: Statement Chaining Check"]
+    Step2 -->|"Multiple Semicolons or Statements"| Block2["Reject: Chained Statements Forbidden"]
+    Step2 -->|"Single Statement"| Step3["Step 3: Keyword and Token Whitelist Check"]
+    Step3 -->|"Contains INSERT, UPDATE, DROP, PRAGMA, etc."| Block3["Reject: Prohibited Mutation Keyword"]
+    Step3 -->|"Starts with SELECT or WITH"| Step4["Step 4: Table Reference Validation"]
+    Step4 -->|"References tables other than uploaded_data"| Block4["Reject: Unauthorized Table Access"]
+    Step4 -->|"Valid"| Step5["Step 5: SQLite Read-Only Execution"]
+    Step5 -->|"Execution Fails with Schema Error"| RepairCheck{"Repairs under 3?"}
+    RepairCheck -->|"Yes"| Heal["Self-Healing: Send Error to Gemini for Repair"]
     Heal --> Step1
-    RepairCheck -->|No| Fail["Exhausted Repairs: Return Helpful Error"]
-    Step5 -->|Success| Success["Return Exact Calculation Results"]
+    RepairCheck -->|"No"| Fail["Exhausted Repairs: Return Helpful Error"]
+    Step5 -->|"Success"| Success["Return Exact Calculation Results"]
 ```
 
 ### What-If Security Scenarios
@@ -861,12 +861,12 @@ While the 5-row preview in Dataset Overview offers a quick sanity check, the **F
 
 ```mermaid
 flowchart LR
-    Open["Click 'View Full Dataset'"] --> Modal["Full-Screen Explorer Modal (~94% Viewport)"]
+    Open["Click View Full Dataset"] --> Modal["Full-Screen Explorer Modal (94% Viewport)"]
     Modal --> Features["Spreadsheet Controls"]
     Features --> S1["Server-Side Pagination (25, 50, 100, 200 rows)"]
     Features --> S2["Global Search across all columns (Debounced 300ms)"]
     Features --> S3["Server-Side Sorting (Click column headers for ASC/DESC)"]
-    Features --> S4["Sticky Row Numbers (#) & Column Headers"]
+    Features --> S4["Sticky Row Numbers (Index) and Column Headers"]
     Features --> S5["Read-Only Guarantee (No writes, zero Gemini calls)"]
 ```
 
@@ -885,11 +885,11 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    Header["App Header (Nobeth Analytics Logo, Title & Status Badges)"]
+    Header["App Header (Nobeth Analytics Logo, Title and Status Badges)"]
     ColLeft["Left Column: Data Management"]
-    ColRight["Right Column: Intelligence & Results"]
+    ColRight["Right Column: Intelligence and Results"]
 
-    ColLeft --> Card1["Card 1: Upload Dataset (Drag & Drop, Replace Button)"]
+    ColLeft --> Card1["Card 1: Upload Dataset (Drag and Drop, Replace Button)"]
     ColLeft --> Card2["Card 2: Dataset Overview (Metrics, 5-row preview, View Full Dataset)"]
 
     ColRight --> Card3["Card 3: Ask Your Data (Prompt Input, Microphone, Quick Chips)"]
@@ -923,16 +923,16 @@ sequenceDiagram
     participant Tracker as OperationTracker
 
     UI->>UI: Generate op_id (e.g. op_query_a1b2c3d4)
-    UI->>API: POST /api/query { question, operation_id }
+    UI->>API: POST /api/query (question, operation_id)
     Note over API,Tracker: Register workflow stages
     API->>Tracker: create_query_operation(op_id)
     
     loop Every 120ms
         UI->>API: GET /api/operations/op_query_a1b2c3d4
         API->>Tracker: get_operation(op_id)
-        Tracker-->>API: Stages, statuses & durations
+        Tracker-->>API: Stages, statuses and durations
         API-->>UI: Live JSON status
-        UI->>UI: Update pipeline indicators & spinner
+        UI->>UI: Update pipeline indicators and spinner
     end
 
     API-->>UI: Final Query Response Payload
