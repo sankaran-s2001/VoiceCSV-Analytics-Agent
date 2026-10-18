@@ -9,7 +9,8 @@ REM =========================================================================
 title VoiceCSV Analytics Agent - Launcher
 
 REM 1. Ensure working directory is strictly project root
-cd /d "%~dp0"
+set "PROJECT_ROOT=%~dp0"
+cd /d "!PROJECT_ROOT!"
 
 echo =========================================================================
 echo               VoiceCSV Analytics Agent - Windows Launcher
@@ -20,7 +21,7 @@ REM -------------------------------------------------------------------------
 REM 2. Multi-Layer Python Detection
 REM    Layer A: Check 'python' in PATH and verify it is executable
 REM    Layer B: Check Windows Python Launcher 'py -3'
-REM    Layer C: Check standard default install paths (if PATH was not set)
+REM    Layer C: Check standard default install paths [if PATH was not set]
 REM -------------------------------------------------------------------------
 set "PYTHON_CMD="
 
@@ -32,7 +33,7 @@ if not errorlevel 1 (
 )
 
 REM Test Windows Python Launcher 'py'
-if "%PYTHON_CMD%"=="" (
+if "!PYTHON_CMD!"=="" (
     where py >nul 2>&1
     if not errorlevel 1 (
         py -3 -c "import sys" >nul 2>&1
@@ -41,7 +42,7 @@ if "%PYTHON_CMD%"=="" (
 )
 
 REM Check common standard install paths in case Python was installed without 'Add to PATH'
-if "%PYTHON_CMD%"=="" (
+if "!PYTHON_CMD!"=="" (
     for %%P in (
         "%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
         "%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
@@ -63,7 +64,7 @@ if "%PYTHON_CMD%"=="" (
 )
 
 REM If Python is still not found, provide crystal-clear guidance
-if "%PYTHON_CMD%"=="" (
+if "!PYTHON_CMD!"=="" (
     echo [ERROR] Python is not installed or could not be found on this computer.
     echo.
     echo VoiceCSV Analytics Agent requires Python 3.10 or newer.
@@ -87,10 +88,10 @@ if "%PYTHON_CMD%"=="" (
 REM -------------------------------------------------------------------------
 REM 3. Verify Python Version (Must be >= 3.10)
 REM -------------------------------------------------------------------------
-%PYTHON_CMD% -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
+!PYTHON_CMD! -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Incompatible Python version detected.
-    for /f "tokens=*" %%v in ('%PYTHON_CMD% --version 2^>^&1') do echo   Current Version: %%v
+    for /f "tokens=*" %%v in ('!PYTHON_CMD! --version 2^>^&1') do echo   Current Version: %%v
     echo.
     echo VoiceCSV Analytics Agent requires Python 3.10 or newer [3.10, 3.11, or 3.12 recommended].
     echo Please install a compatible Python version from https://www.python.org/downloads/
@@ -100,7 +101,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-for /f "tokens=*" %%v in ('%PYTHON_CMD% --version 2^>^&1') do echo [*] System Python: %%v
+for /f "tokens=*" %%v in ('!PYTHON_CMD! --version 2^>^&1') do echo [*] System Python: %%v
 
 REM -------------------------------------------------------------------------
 REM 4. Self-Healing Virtual Environment (.venv)
@@ -125,12 +126,12 @@ if "!RECREATE_VENV!"=="1" (
         rmdir /s /q .venv >nul 2>&1
     )
     echo [*] Setting up isolated Python virtual environment in .venv...
-    %PYTHON_CMD% -m venv .venv
+    !PYTHON_CMD! -m venv .venv
     if errorlevel 1 (
         echo.
         echo [ERROR] Failed to create virtual environment.
         echo Please ensure you have write permissions in this folder:
-        echo   %~dp0
+        echo   !PROJECT_ROOT!
         echo.
         pause
         exit /b 1
