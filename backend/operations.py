@@ -130,6 +130,16 @@ class OperationTracker:
         ("verify_swap", "Atomic Table Swap & Metadata Save")
     ]
 
+    RELATIONAL_UPLOAD_STAGES = [
+        ("receive_validate", "Batch Files Validation & Limits Check"),
+        ("parse_csvs", "Multi-CSV Parsing & Encoding Detection"),
+        ("normalize_schemas", "Schema Normalization & Identifier Check"),
+        ("stage_tables", "SQLite Multi-Table Staging"),
+        ("validate_keys", "Primary Key & Foreign Key Discovery"),
+        ("build_indexes", "Relational Index Creation & Query Optimization"),
+        ("activate_workspace", "Workspace Activation & Relationship Registration")
+    ]
+
     QUERY_STAGES = [
         ("validate_request", "Question Validation & Dataset Check"),
         ("reflect_schema", "Schema Reflection & Prompt Construction"),
@@ -151,6 +161,14 @@ class OperationTracker:
         with self._lock:
             self._prune_old()
             record = OperationRecord(op_id, "upload", self.UPLOAD_STAGES)
+            self._operations[op_id] = record
+            return record
+
+    def create_relational_upload_operation(self, op_id: Optional[str] = None) -> OperationRecord:
+        op_id = op_id or f"op_relupload_{uuid.uuid4().hex[:8]}"
+        with self._lock:
+            self._prune_old()
+            record = OperationRecord(op_id, "relational_upload", self.RELATIONAL_UPLOAD_STAGES)
             self._operations[op_id] = record
             return record
 

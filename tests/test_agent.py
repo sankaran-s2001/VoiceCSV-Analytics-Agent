@@ -28,6 +28,14 @@ def test_extract_clean_sql():
     # Backticks or whitespace
     assert extract_clean_sql(" `SELECT 1` ") == "SELECT 1"
 
+    # Refined question prefix followed by SQL tag
+    with_refined = (
+        "REFINED_QUESTION: What are the top 5 product categories by revenue in USD?\n"
+        "SQL:\n"
+        "SELECT category, SUM(sales) FROM sales_transactions WHERE currency = 'USD' GROUP BY category LIMIT 5;"
+    )
+    assert extract_clean_sql(with_refined) == "SELECT category, SUM(sales) FROM sales_transactions WHERE currency = 'USD' GROUP BY category LIMIT 5"
+
 
 def test_validate_sql_safety_valid():
     # Standard SELECT

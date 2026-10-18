@@ -28,6 +28,7 @@ Rules:
 6. If the result is empty, clearly state that no matching records were found.
 7. If the result contains only NULL or empty values, explain that no usable values were found for the requested metric.
 8. Keep the tone polished, objective, and executive-ready.
+9. Respect currency distinctions: if the results contain multiple currencies, always state figures alongside their respective currencies and never add them together into a combined total.
 """
 
 FALLBACK_SUMMARY = "Your query completed successfully, but the AI summary is temporarily unavailable."

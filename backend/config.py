@@ -45,6 +45,13 @@ class Settings:
         return self.max_upload_mb * 1024 * 1024
 
     @property
+    def data_dir(self) -> Path:
+        """Get absolute path to data directory, ensuring it exists."""
+        d = PROJECT_ROOT / "data"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    @property
     def resolved_db_path(self) -> Path:
         """Get absolute path to SQLite database, ensuring parent directory exists."""
         p = Path(self.sqlite_db_path)
@@ -58,7 +65,12 @@ class Settings:
         """Return True if a valid-looking Google API key is configured."""
         if not self.google_api_key:
             return False
-        if self.google_api_key in ("your_google_ai_studio_api_key", "your_api_key_here"):
+        if self.google_api_key in (
+            "your_google_ai_studio_api_key",
+            "your_api_key_here",
+            "your_actual_api_key_here",
+            "your_gemini_api_key_here",
+        ):
             return False
         return len(self.google_api_key) > 5
 

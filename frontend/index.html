@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>VoiceCSV Analytics Agent</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=2.1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -29,6 +29,10 @@
           <span class="status-dot"></span>
           <span class="badge-text">Connecting...</span>
         </div>
+        <div id="workspaceModeBadge" class="status-badge badge-neutral">
+          <span class="status-dot"></span>
+          <span class="badge-text">Mode: Single CSV</span>
+        </div>
         <div id="geminiBadge" class="status-badge badge-pending">
           <span class="status-dot"></span>
           <span class="badge-text">AI: Checking...</span>
@@ -45,42 +49,105 @@
       <!-- Left Column: Data Management -->
       <section class="panel-column left-column">
         <!-- CSV Upload Card -->
+        <!-- Dataset Mode Selector & Upload Card -->
         <div class="card upload-card">
           <div class="card-header">
             <div class="card-title-group">
               <span class="card-step">1</span>
-              <h2 class="card-title">Upload Dataset</h2>
+              <h2 class="card-title">Dataset Workspace</h2>
             </div>
-            <span class="card-badge">CSV Only &bull; Max 100MB</span>
+            <div class="workspace-mode-pills">
+              <button type="button" id="modeSingleTabBtn" class="mode-tab-btn active" data-mode="single">Single CSV</button>
+              <button type="button" id="modeRelationalTabBtn" class="mode-tab-btn" data-mode="relational">Relational (Multi-Table)</button>
+            </div>
           </div>
 
-          <div id="dropZone" class="drop-zone">
-            <input type="file" id="fileInput" accept=".csv" class="hidden-input">
-            <div class="drop-zone-content">
-              <div class="upload-icon-wrapper">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
+          <!-- Mode A: Single CSV Container -->
+          <div id="singleUploadContainer" class="mode-container">
+            <div id="dropZone" class="drop-zone">
+              <input type="file" id="fileInput" accept=".csv" class="hidden-input">
+              <div class="drop-zone-content">
+                <div class="upload-icon-wrapper">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                </div>
+                <p class="drop-prompt">Drag & drop your single CSV here</p>
+                <p class="drop-subprompt">or click to browse your files</p>
+                <button type="button" id="browseBtn" class="btn btn-secondary btn-sm">Browse CSV</button>
               </div>
-              <p class="drop-prompt">Drag & drop your CSV file here</p>
-              <p class="drop-subprompt">or click to browse your files</p>
-              <button type="button" id="browseBtn" class="btn btn-secondary btn-sm">Browse Files</button>
+              <div id="uploadProgress" class="upload-progress-container hidden">
+                <div class="spinner"></div>
+                <p id="uploadProgressText" class="progress-text">Processing and loading into SQLite...</p>
+                <div id="uploadPipelineSteps" class="upload-pipeline-steps"></div>
+              </div>
             </div>
-            <div id="uploadProgress" class="upload-progress-container hidden">
-              <div class="spinner"></div>
-              <p id="uploadProgressText" class="progress-text">Processing and loading into SQLite...</p>
-              <div id="uploadPipelineSteps" class="upload-pipeline-steps"></div>
+
+            <div id="fileInfoBar" class="file-info-bar hidden">
+              <div class="file-details">
+                <span class="file-name" id="selectedFileName">filename.csv</span>
+                <span class="file-size" id="selectedFileSize">0 KB</span>
+              </div>
+              <button type="button" id="reuploadBtn" class="btn-text">Replace</button>
             </div>
           </div>
 
-          <div id="fileInfoBar" class="file-info-bar hidden">
-            <div class="file-details">
-              <span class="file-name" id="selectedFileName">filename.csv</span>
-              <span class="file-size" id="selectedFileSize">0 KB</span>
+          <!-- Mode B: Relational Dataset Container -->
+          <div id="relationalUploadContainer" class="mode-container hidden">
+            <!-- Bundled Sample Instant Loader -->
+            <div class="bundled-sample-banner">
+              <div class="bundled-sample-info">
+                <span class="bundled-sample-badge">Bundled Sample</span>
+                <h4 class="bundled-sample-title">5 Relational CSVs Ready</h4>
+                <p class="bundled-sample-desc">100k sales transactions linked with customers, products, stores & reps.</p>
+              </div>
+              <button type="button" id="loadBundledSampleBtn" class="btn btn-accent btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span>Load Bundled Sample</span>
+              </button>
             </div>
-            <button type="button" id="reuploadBtn" class="btn-text">Replace</button>
+
+            <div class="or-divider"><span>OR UPLOAD CUSTOM TABLES</span></div>
+
+            <div id="relationalDropZone" class="drop-zone relational-drop-zone">
+              <input type="file" id="relationalFileInput" accept=".csv" multiple class="hidden-input">
+              <div class="drop-zone-content">
+                <div class="upload-icon-wrapper accent-violet-icon">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                    <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                    <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                    <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                  </svg>
+                </div>
+                <p class="drop-prompt">Drag & drop multiple related CSVs</p>
+                <p class="drop-subprompt">Select all tables together for automated relationship discovery</p>
+                <button type="button" id="browseRelationalBtn" class="btn btn-secondary btn-sm">Browse Multiple CSVs</button>
+              </div>
+              <div id="relationalUploadProgress" class="upload-progress-container hidden">
+                <div class="spinner"></div>
+                <p id="relationalUploadProgressText" class="progress-text">Ingesting relational dataset...</p>
+                <div id="relationalPipelineSteps" class="upload-pipeline-steps"></div>
+              </div>
+            </div>
+
+            <!-- Staged File Queue -->
+            <div id="relationalQueueContainer" class="relational-queue-container hidden">
+              <div class="queue-header">
+                <span class="queue-title">Selected Tables for Import</span>
+                <span id="queueCountBadge" class="badge-count">0 files</span>
+              </div>
+              <div id="relationalQueueList" class="relational-queue-list"></div>
+              <div class="queue-actions">
+                <button type="button" id="startRelationalImportBtn" class="btn btn-primary btn-sm btn-block">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <span>Import Relational Workspace</span>
+                </button>
+                <button type="button" id="clearRelationalQueueBtn" class="btn btn-ghost btn-sm">Clear</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -92,6 +159,10 @@
               <h2 class="card-title">Dataset Overview</h2>
             </div>
             <div class="dataset-header-actions">
+              <div id="overviewTableSelectWrapper" class="overview-table-select-wrapper hidden">
+                <label for="overviewTableSelect" class="table-select-label">Table:</label>
+                <select id="overviewTableSelect" class="table-switcher-select"></select>
+              </div>
               <button type="button" id="openFullExplorerBtn" class="btn btn-secondary btn-sm full-explorer-btn" title="Open spreadsheet-like full dataset explorer">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -157,6 +228,36 @@
           </div>
         </div>
 
+        <!-- Table Relationships & Relational Graph Card -->
+        <div id="relationshipsCard" class="card relationships-card hidden">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-step">&#9881;</span>
+              <h2 class="card-title">Table Relationships & JOINs</h2>
+            </div>
+            <span id="relationshipsCountBadge" class="badge-count">0 Relationships</span>
+          </div>
+
+          <!-- Active Workspace Tables Grid -->
+          <div class="rel-section-header">Active Relational Tables</div>
+          <div id="relTablesGrid" class="rel-tables-grid"></div>
+
+          <!-- Verified Relationships Graph / List -->
+          <div class="rel-section-header">Verified JOIN Paths & Key Integrity</div>
+          <div id="relPathsList" class="rel-paths-list"></div>
+
+          <!-- Multi-Currency Safeguard Status -->
+          <div class="currency-safeguard-banner" id="currencySafeguardBanner">
+            <div class="currency-safeguard-header">
+              <span class="currency-safeguard-dot"></span>
+              <span class="currency-safeguard-title">Deterministic Multi-Currency Safeguard Active</span>
+            </div>
+            <p id="currencySafeguardDesc" class="currency-safeguard-desc">
+              Detects mixed currencies. Enforces strict filtering or currency grouping on monetary columns (sales, profit, cost) to prevent distorted combined totals.
+            </p>
+          </div>
+        </div>
+
         <!-- Privacy & Local Processing Notice -->
         <div class="privacy-note">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -215,11 +316,18 @@
           <!-- Quick Suggestion Chips -->
           <div class="suggestion-chips-container">
             <span class="chips-label">Quick Prompts:</span>
-            <div class="chips-list">
+            <div class="chips-list" id="chipsList">
               <button type="button" class="chip-btn" data-query="What is the total number of records?">Total rows</button>
               <button type="button" class="chip-btn" data-query="Show the top 5 records by the primary numeric column">Top 5 values</button>
               <button type="button" class="chip-btn" data-query="What are the distinct categories and their counts?">Category breakdown</button>
               <button type="button" class="chip-btn" data-query="Calculate the average, minimum, and maximum of numeric columns">Summary stats</button>
+            </div>
+            <div class="chips-list hidden" id="relationalChipsList">
+              <button type="button" class="chip-btn" data-query="What are the top 5 product categories by sales in USD?">Top categories (USD)</button>
+              <button type="button" class="chip-btn" data-query="Who are the top 5 customers by total spend in USD?">Top customers (USD)</button>
+              <button type="button" class="chip-btn" data-query="Show total sales and profit grouped by currency">Sales by currency</button>
+              <button type="button" class="chip-btn" data-query="How many transactions were processed by each store?">Transactions by store</button>
+              <button type="button" class="chip-btn" data-query="Which sales representative generated the highest sales in INR?">Top rep (INR)</button>
             </div>
           </div>
         </div>
@@ -254,6 +362,60 @@
 
         <!-- Analysis Results Section -->
         <div id="resultsSection" class="results-section hidden">
+          <!-- Executed Query Context Card -->
+          <div id="queryContextCard" class="card query-context-card">
+            <div class="card-header query-context-header">
+              <div class="card-title-group">
+                <span class="context-card-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                </span>
+                <h3 class="card-title">Executed Query Context</h3>
+              </div>
+              <div class="query-context-meta">
+                <span id="querySourceBadge" class="query-source-badge badge-text">
+                  <span id="querySourceIcon" class="source-icon">⌨</span>
+                  <span id="querySourceText">Typed Query</span>
+                </span>
+                <button type="button" id="copyQuestionBtn" class="btn btn-secondary btn-sm" title="Load question back into input box to edit or re-run">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                  <span>Edit in Box</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="query-context-body">
+              <!-- Raw Input Row -->
+              <div class="context-item context-raw-item">
+                <div class="context-label-row">
+                  <span class="context-label">
+                    <span class="context-indicator raw-indicator"></span>
+                    <span id="contextRawLabel">User Input (Raw)</span>
+                  </span>
+                  <span class="context-hint" id="contextRawHint">As entered / spoken</span>
+                </div>
+                <div class="context-content raw-bubble" id="contextRawQuestion">-</div>
+              </div>
+
+              <!-- Refined AI Query Row -->
+              <div class="context-item context-refined-item">
+                <div class="context-label-row">
+                  <span class="context-label">
+                    <span class="context-indicator refined-indicator"></span>
+                    <span>AI Refined Analytical Question</span>
+                  </span>
+                  <span class="context-badge-ai">✦ Gemini Intent</span>
+                </div>
+                <div class="context-content refined-bubble" id="contextRefinedQuestion">-</div>
+              </div>
+            </div>
+          </div>
+
           <!-- Executive Insights Card -->
           <div class="card insights-card">
             <div class="card-header">
@@ -385,6 +547,10 @@
           <div>
             <div class="explorer-meta-row">
               <h2 id="explorerTitle" class="explorer-modal-title">Full Dataset Explorer</h2>
+              <div id="explorerTableSelectWrapper" class="explorer-table-select-wrapper hidden">
+                <label for="explorerTableSelect" class="table-select-label">Table:</label>
+                <select id="explorerTableSelect" class="explorer-table-select"></select>
+              </div>
               <span id="explorerFileName" class="table-tag">uploaded_data.csv</span>
               <span class="explorer-readonly-pill">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -487,8 +653,8 @@
   </div>
 
   <!-- Scripts -->
-  <script src="/js/stt.js"></script>
-  <script src="/js/tts.js"></script>
-  <script src="/js/app.js"></script>
+  <script src="/js/stt.js?v=2.1"></script>
+  <script src="/js/tts.js?v=2.1"></script>
+  <script src="/js/app.js?v=2.1"></script>
 </body>
 </html>

@@ -140,3 +140,6 @@ def test_query_endpoint(client_with_isolated_db, monkeypatch):
     assert data["rows"] == [[6000]]
     assert data["heal_attempts"] == 0
     assert data["total_time_ms"] > 0
+    assert data["raw_question"] == "Total budget across departments?"
+    assert data["refined_question"] == "Total budget across departments?"
+    assert data["source"] == "text"

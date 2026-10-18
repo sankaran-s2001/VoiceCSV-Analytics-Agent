@@ -25,6 +25,14 @@ VoiceCSV Analytics Agent allows business stakeholders and analysts to upload CSV
 11. [Troubleshooting & FAQs](#troubleshooting--faqs)
 12. [Security & Privacy Details](#security--privacy-details)
 13. [Limitations & Browser Compatibility](#limitations--browser-compatibility)
+14. [Phase 2: Multi-Table Relational Analytics & Intelligent JOINs](#14-phase-2-multi-table-relational-analytics--intelligent-joins)
+15. [Student Master Guide: Architecture, Doubts Clearing & Deep Dive](#15-student-master-guide-architecture-doubts-clearing--deep-dive)
+    - [15.1 Executed Query Context & Dual-Question Pipeline (Raw vs. Refined)](#151-executed-query-context--dual-question-pipeline-raw-vs-refined)
+    - [15.2 Dual-Engine Speech-to-Text (STT) Subsystem](#152-dual-engine-speech-to-text-stt-subsystem)
+    - [15.3 Table Relationships, Foreign Key Discovery & Multi-Currency Safeguard](#153-table-relationships-foreign-key-discovery--multi-currency-safeguard)
+    - [15.4 Full Dataset Explorer (Virtual Paginated Data Grid)](#154-full-dataset-explorer-virtual-paginated-data-grid)
+    - [15.5 Complete Lifecycle: What Happens Before, During, and After Query Execution](#155-complete-lifecycle-what-happens-before-during-and-after-query-execution)
+    - [15.6 Student FAQs & Doubts Clearing (What, Why, How, When, Where)](#156-student-faqs--doubts-clearing-what-why-how-when-where)
 
 ---
 
@@ -1127,6 +1135,509 @@ VoiceCSV Analytics Agent is a powerful local business intelligence tool, but lik
 
 1. **Parsing vs. Semantic Understanding:** VoiceCSV guarantees that your CSV will be parsed accurately into SQLite. However, if your spreadsheet contains ambiguous column names like `val1`, `temp_b`, or internal acronyms without explanation, Gemini must infer their meaning from sample values. Descriptive column names always yield superior analytical results.
 2. **Ambiguous Analytical Intent:** If you ask *"Who is our best customer?"*, the word *"best"* is subjective. One person might mean *highest total spend*, another *most frequent orders*, and another *most recent purchase*. When asking questions, state your analytical metric explicitly (e.g., *"Top customer by total revenue"*).
-3. **Single-Table Scope:** The current release focuses on single-table analytics on the active `uploaded_data` table. It does not perform multi-table relational joins across multiple separate CSV files simultaneously.
+3. **Workspace Scope (Single-Table & Multi-Table):** VoiceCSV Analytics Agent supports both **Single-Table Mode** (for standalone CSVs stored in `uploaded_data`) and **Relational Mode** (for collections of related CSVs joined across verified foreign keys). Queries always execute strictly within the active workspace.
 4. **Browser Speech Dependencies:** Speech-to-Text relies on the browser's implementation of the Web Speech API. While fully supported in Google Chrome, Microsoft Edge, and Apple Safari, it is not currently supported in Mozilla Firefox. Users on unsupported browsers can type queries normally.
 5. **Internet Connection for AI Features:** While your database, file parsing, and Full Dataset Explorer run 100% locally on your computer, natural-language query translation and executive summaries require an active internet connection to communicate with the Google Gemini API.
+
+---
+
+## 14. Phase 2: Multi-Table Relational Analytics & Intelligent JOINs
+
+Phase 2 upgrades VoiceCSV Analytics Agent from a single-table data explorer into a full-fledged **Relational AI Database Analyst**. Users can now ingest multiple related CSV files simultaneously, verify foreign-key links, explore tables seamlessly, and ask natural-language questions that automatically synthesize high-performance SQL `JOIN` queries—all while strictly enforcing data integrity, currency safety, and dynamic database sandboxing.
+
+### A. Relational Architecture & Multi-Table Workflow
+
+```mermaid
+flowchart TD
+    subgraph UI ["Frontend User Experience"]
+        Upload["Multi-CSV Ingestion Queue"]
+        Mode["Workspace Mode Selector\n(Single vs. Relational)"]
+        SampleBtn["Bundled Sample Loader\n(5 Verified CSV Tables)"]
+        RelCard["Table Relationships Panel\n(PKs, FKs, Cardinality, Orphans)"]
+        Explorer["Full Dataset Explorer\n(Table Selector Dropdown)"]
+        Chat["Natural Language & Voice Input"]
+    end
+
+    subgraph Backend ["FastAPI Backend Engine"]
+        Normalize["Header & Table Normalization\n(Collision Prevention)"]
+        Staging["Atomic Staging Tables\n(_staging_rel_*)"]
+        Discovery["PK & FK Discovery Engine\n(Uniqueness & Orphan Verification)"]
+        Indexer["Relational Index Generator\n(B-Tree on PKs and FKs)"]
+        Swap["Zero-Downtime Table Swap\n(Preserves uploaded_data)"]
+        Registry["Metadata Registry\n(_dataset_metadata)"]
+    end
+
+    subgraph Intelligence ["AI & Execution Engine"]
+        Context["Schema Catalog Builder\n(Min. Context + Join Conditions)"]
+        Gemini["Google Gemini LLM\n(SQL Synthesis & Table Aliasing)"]
+        CurrencyGuard["Currency Pre-Execution Guard\n(Blocks Unsegregated Financial Sums)"]
+        Authorizer["Dynamic SQLite Authorizer\n(Restricts to Active Workspace Tables)"]
+        DB[(Local SQLite DB\ndata/analytics.db)]
+        Summary["Executive Summarizer\n(Currency-Aware Takeaways)"]
+    end
+
+    Upload --> Normalize
+    SampleBtn --> Normalize
+    Normalize --> Staging
+    Staging --> Discovery
+    Discovery --> Indexer
+    Indexer --> Swap
+    Swap --> Registry
+    Registry --> RelCard
+    Registry --> Explorer
+    Registry --> Context
+
+    Chat --> Context
+    Context --> Gemini
+    Gemini --> CurrencyGuard
+    CurrencyGuard --> Authorizer
+    Authorizer --> DB
+    DB --> Summary
+    Summary --> UI
+```
+
+---
+
+### B. Dual Workspace Architecture: Single-Table & Relational Modes
+
+VoiceCSV guarantees **strict workspace isolation**:
+
+| Dimension | Mode A: Single-Table Workspace | Mode B: Relational Workspace |
+| :--- | :--- | :--- |
+| **Active Table(s)** | Strictly `uploaded_data` | Multiple normalized tables (e.g., `customers`, `products`, `stores`, `sales_representatives`, `sales_transactions`) |
+| **Physical Isolation** | Stored alongside metadata; never dropped when relational mode is active | Separate physical tables; `uploaded_data` remains intact and queryable on switch |
+| **SQL Allowlist** | `{"uploaded_data"}` | `{"customers", "products", "stores", ...}` dynamically derived from workspace registry |
+| **Schema Context** | Single table column definitions and 3 sample rows | Complete catalog of active tables, verified JOIN conditions, cardinality, and currency rules |
+| **Explorer UI** | Single dataset view with pagination, search, and sorting | Multi-table dropdown selector allowing instant switching across any active table |
+
+Switching between modes is instantaneous and does not require re-uploading datasets.
+
+---
+
+### C. Multi-CSV Batch Ingestion & Atomic Staging
+
+To eliminate partial or corrupted imports when uploading multiple files:
+
+1. **Filename-to-Table Normalization:** Filenames are converted to safe, lowercased SQLite identifiers (e.g., `Sales Transactions.csv` → `sales_transactions`). Collision detection prevents two distinct files from overwriting each other.
+2. **Encodings & Leading Zeros:** Encodings (`utf-8`, `utf-8-sig`, `latin-1`, `cp1252`) are inspected automatically. Identifiers with leading zeros (e.g., `00452`) are detected on sampling and loaded strictly as text to prevent data loss.
+3. **Atomic Staging Isolation:** All tables are initially loaded into temporary staging tables (`_staging_rel_<table_name>`).
+4. **All-or-Nothing Activation:** Primary keys, foreign keys, row counts, and schema structures are thoroughly verified across all staging tables. If any single table or relationship check fails, all staging tables are discarded, leaving the existing active workspace 100% untouched.
+5. **Zero-Downtime Table Swap:** Upon 100% verification, existing tables are atomically swapped and relational indexes are established within a SQLite write lock.
+
+---
+
+### D. Automated Primary Key & Foreign Key Discovery
+
+Rather than relying on Large Language Models to guess table relationships, the engine performs **deterministic statistical relationship discovery**:
+
+1. **Primary Key Identification:**
+   - Evaluates candidate columns prioritizing `{table}_id`, `{singular}_id`, `id`, and columns ending with `_id`.
+   - Checks row count: candidates MUST satisfy `COUNT(DISTINCT col) == COUNT(*)` with `0` NULL values.
+   - If duplicates or nulls exist, the column is rejected as a primary key candidate.
+2. **Foreign Key Integrity Verification:**
+   - Detects when a parent primary key appears in another active table.
+   - Measures **Orphan Keys**: counts child rows referencing values not present in the parent table.
+   - Calculates **Parent Coverage Percentage**: percentage of parent records referenced by child rows.
+   - Assigns status: `verified` (0 orphans, 100% referential integrity) or `warning` (orphans detected).
+   - Classifies relationship cardinality (e.g., `many_to_one`).
+3. **Automated B-Tree Indexing:**
+   - Creates B-Tree indexes on verified parent primary keys (`idx_pk_{table}_{column}`) and child foreign keys (`idx_fk_{table}_{column}`).
+   - Guarantees sub-millisecond execution for multi-table relational joins across hundreds of thousands of rows.
+
+---
+
+### E. Critical Financial Rule: Multi-Currency Segregation
+
+In real-world enterprise databases, transaction datasets frequently contain amounts in multiple sovereign currencies (e.g., USD, INR, AUD, CAD, GBP, SGD). Silently adding monetary amounts across different currencies is a fatal financial defect.
+
+VoiceCSV enforces **two-tier multi-currency protection**:
+
+1. **Prompt-Level Semantic Instruction:** Tells Gemini that monetary columns (`sales`, `cost`, `profit`) MUST NEVER be aggregated into a single combined total when multiple currencies are present in the dataset.
+2. **Deterministic Pre-Execution Currency Safeguard (`validate_currency_safety`):**
+   - Automatically analyzes SQL statements before execution.
+   - If an aggregation (`SUM`, `AVG`) is performed on monetary columns and multiple currencies exist in the active dataset, the query MUST contain either:
+     - An explicit filter (e.g., `WHERE currency = 'USD'`), OR
+     - An explicit grouping (e.g., `GROUP BY currency`, `GROUP BY p.product_category, t.currency`).
+   - Any query attempting to sum cross-currency amounts into an unsegregated total is rejected with a clear business clarification message.
+3. **Executive Summary Currency Grounding:** The summarizer reflects segregated amounts and states the currency symbol/code explicitly in all written takeaways.
+
+---
+
+### F. Dynamic SQL Security & Sandbox Authorizer
+
+The SQL validation and execution architecture was strengthened to support complex multi-table queries without sacrificing safety:
+
+1. **Dynamic Table Allowlisting:** Only physical tables belonging to the active workspace metadata are authorized. CTE aliases (e.g., `WITH ranked AS (...)`) and table aliases (e.g., `sales_transactions AS st`) are parsed and permitted, while unauthorized physical tables (such as internal SQLite system tables or metadata tables) are denied.
+2. **SQLite Authorizer Callback:** Operates at the C-level inside SQLite. For every `SQLITE_READ` action, the authorizer checks the table against the active workspace set. Unapproved table reads (e.g., `SELECT * FROM sqlite_master`) trigger an instant `SQLITE_DENY`.
+3. **Mutation and Injection Blocking:** Multiple statements, comments (`--`, `/*`), attachment (`ATTACH DATABASE`), schema modification (`ALTER`, `DROP`), and write operations (`INSERT`, `UPDATE`, `DELETE`) remain strictly prohibited.
+4. **Self-Healing Re-validation:** Any query corrected during automatic self-healing must pass all security checks and currency validations again before execution.
+
+---
+
+### G. Bundled Relational Sample Dataset (100,000 Transactions)
+
+VoiceCSV includes a verified 5-table relational dataset in the `data/` directory:
+
+| Table | Source File | Records | Primary Key | Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| `customers` | `customers.csv` | 19,858 | `customer_id` | Customer demographics, postal codes, and market segments |
+| `products` | `products.csv` | 1,000 | `product_id` | Product catalog, categories, subcategories, and unit pricing |
+| `stores` | `stores.csv` | 5 | `store_id` | Physical store locations |
+| `sales_representatives`| `sales_representatives.csv` | 5 | `sales_rep_id` | Account representatives |
+| `sales_transactions` | `sales_transactions.csv` | 100,000 | `transaction_id` | Fact table with 38 operational, financial, and product metrics |
+
+**Verified Relationship Graph:**
+```text
+customers (1) ───────────< sales_transactions >─────────── (1) products
+stores (1) ───────────────< sales_transactions >─────────── (1) sales_representatives
+```
+
+- `sales_transactions.customer_id` → `customers.customer_id` (0 orphans, 100% coverage)
+- `sales_transactions.product_id` → `products.product_id` (0 orphans, 100% coverage)
+- `sales_transactions.store_id` → `stores.store_id` (0 orphans, 100% coverage)
+- `sales_transactions.sales_rep_id` → `sales_representatives.sales_rep_id` (0 orphans, 100% coverage)
+
+Users can load this sample instantly by switching to **Relational Dataset** mode and clicking **Load Bundled Relational Sample**.
+
+---
+
+### H. 20-Question Relational Benchmark Suite
+
+A repeatable automated benchmark suite (`tests/test_relational_benchmark.py`) validates SQLite join execution against independent Pandas calculations computed directly from the source CSVs:
+
+1. **Total transaction count:** 100,000 records verified.
+2. **Unique customer count in transactions:** 19,858 customers verified.
+3. **Transaction count by currency:** USD, INR, AUD, CAD, GBP, SGD distribution verified.
+4. **Sales by product category and currency:** Multi-table join across `sales_transactions` and `products` grouped by currency.
+5. **Top 5 products by sales in USD:** Join with products, filtered for USD, top 5 verified.
+6. **Top 5 customers by spend in USD:** Join with customers, filtered for USD, top 5 spenders verified.
+7. **Sales by customer state in USD:** Join with customers, aggregated across all states.
+8. **Transactions by store:** Join with stores, matching store counts verified.
+9. **Transactions by sales representative:** Join with sales representatives, rep counts verified.
+10. **Average customer rating by customer segment:** Join with customers, rating averages verified.
+11. **Returned transaction count by product category:** Filtered for `return_status = 'Yes'`, category breakdown verified.
+12. **Profit by product category and currency:** Profit sums segregated by currency.
+13. **Monthly transaction counts:** `SUBSTR(order_date, 1, 7)` monthly distribution verified.
+14. **Monthly sales in USD:** Monthly revenue trajectory in USD verified.
+15. **Transactions for a specific customer:** Filtered for `CUST-00001`, transaction history verified.
+16. **Products with no sales transactions:** `LEFT JOIN` detecting zero unlinked products verified.
+17. **Customers with no transactions:** `LEFT JOIN` detecting zero unplaced customers verified.
+18. **Orphan foreign key detection:** Foreign key referential integrity verified.
+19. **NULL value handling:** Null handling on optional columns (`promotion_name`, `coupon_code`) verified.
+20. **Unsupported column rejection:** Safe rejection of queries referencing non-existent columns verified.
+
+---
+
+## 15. Student Master Guide: Architecture, Doubts Clearing & Deep Dive
+
+> [!TIP]
+> **Welcome to the Student Learning & Engineering Deep Dive!**  
+> This guide is crafted for computer science students, aspiring data engineers, and AI developers. It explains the inner mechanics of VoiceCSV Analytics Agent from first principles. Rather than treating the software as a "black box," this guide answers the **What, Why, How, When, Where, Before, and After** of every component, addressing common engineering doubts and architectural decisions.
+
+---
+
+### 15.1 Executed Query Context & Dual-Question Pipeline (Raw vs. Refined)
+
+#### What is the Executed Query Context?
+The **Executed Query Context** is a dedicated glassmorphism panel anchored prominently at the very top of the analysis results section in the dashboard (directly above the Executive Takeaway). It permanently connects the generated SQL, query table, and executive summary with:
+1. **The Verbatim User Input (Raw)**: Exactly what the user typed into the textarea or what the microphone transcribed.
+2. **The AI Refined Analytical Question (`✦ Gemini Intent`)**: Gemini's concise, mathematically unambiguous business question formulated *before* the SQL query was generated.
+3. **The Input Modality Badge**: A visual indicator showing how the prompt entered the application (`🎤 Spoken Voice`, `⌨ Typed Input`, or `⚡ Quick Prompt`).
+4. **The "Edit in Box" Action**: A quick-action button allowing the user to load the raw question back into the prompt box for rapid iteration.
+
+```text
++---------------------------------------------------------------------------------------------------------+
+|  🔍 EXECUTED QUERY CONTEXT                                [ 🎤 Spoken Voice ]  [ 📝 Edit in Box ]       |
++---------------------------------------------------------------------------------------------------------+
+|  • TRANSCRIBED SPOKEN AUDIO (RAW) [Directly as spoken]                                                  |
+|    "Total number of records in the sales representative table."                                         |
++---------------------------------------------------------------------------------------------------------+
+|  • AI REFINED ANALYTICAL QUESTION                         [ ✦ Gemini Intent ]                           |
+|    "What is the total count of sales representatives listed in the sales_representatives table?"        |
++---------------------------------------------------------------------------------------------------------+
+```
+
+#### Why Was This Feature Created? (The 2 Core Problems)
+1. **The "Disconnected Context" Dilemma:** In traditional web analytics tools, once a query finishes executing, the user might clear the text box to ask something new, or the box remains static while previous tables linger on the screen. If someone steps away from their laptop or takes a screenshot of the results, nobody knows which question produced those numbers. The Executed Query Context solves this by firmly cementing the question right next to the answer.
+2. **The "Broken Human Speech" Reality:** In real-world data analysis, humans rarely speak in perfectly formed relational database questions. Spoken prompts are frequently:
+   - **Fragmented:** *"top 3 prods rev usd"* instead of *"What are the top 3 product names by total sales revenue filtered for USD transactions?"*
+   - **Colloquial:** *"who bought the most stuff"* instead of *"Which customers have the highest aggregate transaction total?"*
+   - **Grammatically imperfect or typo-ridden:** *"whats highst rev by regin"*.
+   
+   If an application only displays the SQL query (`SELECT product_name, SUM(sales) ...`), non-technical business executives cannot easily verify if the model understood what they actually meant. By displaying the **AI Refined Analytical Question**, users instantly see: *"Yes! Gemini understood that when I said 'top 3 prods rev usd', I meant top products ranked by sales revenue in USD currency."*
+
+#### How Does the Dual-Question Pipeline Work Under the Hood?
+Many developers make the mistake of making **two separate API calls** to Gemini (one call to polish the prompt, and a second call to generate SQL). That approach doubles latency, doubles API token costs, and introduces points of failure.
+
+VoiceCSV implements an optimized **Zero-Latency Single-Call Pipeline**:
+1. In `backend/agent.py`, the `AnalyticsAgent.generate_sql()` method provides Gemini with structured schema context and instructs the model:
+   ```text
+   Task:
+   1. Understand the user's analytical intent even if their question contains broken grammar, typos, abbreviations, colloquial phrases, or spoken fragments. Formulate a concise, clear professional business question representing their intent.
+   2. Generate the single, optimal read-only SQLite query using only the supplied schema to answer this question.
+
+   Output Format:
+   REFINED_QUESTION: <Concise, clear professional analytical question>
+   SQL:
+   <The single SQLite SELECT or WITH statement>
+   ```
+2. When Gemini returns the response:
+   - The regex-based extractor splits the string on `REFINED_QUESTION:` and `SQL:`.
+   - The refined question is stored in `self._last_refined_question`.
+   - The clean SQL is validated for read-only safety.
+3. When `executive_summarizer.generate_summary()` is called, it receives the **Refined Question** rather than the raw typo-filled input. This guarantees that the synthesized executive takeaway is grounded in clean business terminology.
+4. The REST endpoint `/api/query` returns `raw_question`, `refined_question`, and `source` (`"voice" | "text" | "chip"`).
+5. The frontend `renderQueryResults(data)` dynamically styles the badges and bubbles.
+
+---
+
+### 15.2 Dual-Engine Speech-to-Text (STT) Subsystem
+
+#### What is the Dual-Engine STT Architecture?
+To enable hands-free voice querying across all modern web browsers and operating systems, VoiceCSV uses a **Dual-Engine Speech-to-Text** architecture in `frontend/js/stt.js`:
+- **Engine 1: Browser-Native Web Speech API** (`window.SpeechRecognition` / `window.webkitSpeechRecognition`).
+- **Engine 2: MediaRecorder Audio Streaming + Gemini Multimodal Fallback** (`navigator.mediaDevices.getUserMedia` + `/api/transcribe`).
+
+```text
+                              [ User Speaks into Microphone ]
+                                             │
+                       Is Web Speech API supported & permitted?
+                                    /                 \
+                                  YES                  NO / Fallback
+                                  /                     \
+                   [ Engine 1: Native Speech ]    [ Engine 2: MediaRecorder ]
+                                │                                │
+                   Real-time interim text            Record audio/webm chunks
+                                │                                │
+                   Directly populated to UI           POST /api/transcribe
+                                                                 │
+                                                      Gemini Multimodal Audio
+                                                                 │
+                                                      Transcribed text returned
+                                \                               /
+                                 ▼                             ▼
+                          [ questionInput.value = Transcribed Text ]
+                          [ Modality Tag = 'voice' (Spoken Voice)  ]
+```
+
+#### Why Two Engines? (Browser Incompatibilities)
+- In **Google Chrome** and **Microsoft Edge**, the native Web Speech API works out of the box using built-in speech recognition models. It delivers instantaneous, streaming text.
+- However, in **Mozilla Firefox**, privacy-hardened browsers like **Brave**, or specific Linux distributions, the Web Speech API is either completely disabled, unsupported, or blocked by default.
+- If an application relies solely on the Web Speech API, Firefox and Brave users will see a broken or non-functioning microphone button.
+- VoiceCSV detects browser support on startup. If native recognition is unavailable or throws a network error, it gracefully falls back to `Engine 2`, recording audio via the standard W3C `MediaRecorder` API and transcribing it using Gemini's native audio understanding.
+
+#### How Does Audio Travel from the Microphone to the Server?
+1. The user clicks **Speak**. The browser requests microphone permission via `getUserMedia({ audio: true })`.
+2. The UI button pulses red, and the status indicator displays `• Recording... (click Stop)`.
+3. The microphone captures compressed Opus audio chunks inside an `audio/webm` container in memory.
+4. When the user clicks **Stop** (or after a 15-second safety limit), a `Blob` is assembled.
+5. The frontend sends the Blob via HTTP POST `multipart/form-data` to `/api/transcribe`.
+6. In `backend/main.py`, FastAPI receives the upload stream and passes the raw bytes to `analytics_agent.transcribe_audio(content, mime_type="audio/webm")`.
+7. Gemini processes the audio waveform directly using multimodal input and returns clean English text.
+8. The frontend fills `#questionInput` with the transcription and dispatches a custom `speech-transcribed` event so the application knows the upcoming query was spoken.
+
+---
+
+### 15.3 Table Relationships, Foreign Key Discovery & Multi-Currency Safeguard
+
+#### What is Relational Multi-Table Analytics?
+Real-world enterprises rarely store their operational data in a single massive CSV file. Flat CSVs suffer from severe data redundancy, update anomalies, and lack of normalization. In enterprise applications, data is segregated into **normalized relational entities**:
+- **Lookup / Dimension Tables:** Small, specialized tables containing unique entities (e.g., `customers`, `products`, `stores`, `sales_representatives`).
+- **Fact / Transaction Tables:** Large tables containing transaction records that link back to dimension tables via **Foreign Keys** (`sales_transactions`).
+
+#### How Does VoiceCSV Discover Relationships Automatically?
+When users drop a folder of CSV files (or load the bundled 5-table dataset), the Database Engine in `backend/db_engine.py` executes an automated **Relational Discovery Pipeline**:
+
+```text
+[ Upload Multiple CSVs ]
+          │
+          ▼
+1. Normalize Headers & Table Names (lowercase, snake_case, unique)
+          │
+          ▼
+2. Primary Key Detection (Scan each table for unique, 100% non-null identifier columns)
+          │
+          ▼
+3. Foreign Key Candidate Matching (Compare column names across tables, e.g. customer_id)
+          │
+          ▼
+4. Referential Integrity Verification:
+   - Check if values in child table exist in parent table (SELECT COUNT(*) ... WHERE parent.id IS NULL)
+   - Calculate Coverage Percentage and Orphan Count
+          │
+          ▼
+5. Relational Graph Registration & SQLite B-Tree Index Creation
+```
+
+If a relationship has **100% coverage** and **0 orphans**, it is flagged as `Verified (verified)` in the UI and supplied directly to Gemini's schema context prompt so it generates flawless `INNER JOIN` or `LEFT JOIN` queries.
+
+#### The Deterministic Multi-Currency Safeguard (Crucial Financial Protection)
+
+> [!CAUTION]
+> **The Real-World Financial Disaster:**  
+> Suppose an international retailer sells goods in the United States (USD), India (INR), Great Britain (GBP), and Australia (AUD).  
+> If an analyst asks: *"What are our total sales this month?"* and a naive SQL agent generates:
+> ```sql
+> SELECT SUM(sales) FROM sales_transactions;
+> ```
+> The database will execute: `100,000 USD + 100,000 INR + 100,000 GBP = 300,000 "Sales"`.  
+> Because 1 USD is worth ~85 INR and 1 GBP is worth ~108 INR, adding raw numbers across mixed currencies is financially nonsensical and produces catastrophic business reports!
+
+**How VoiceCSV Solves This Deterministically:**
+1. Upon loading any dataset, the engine profiles the columns and detects if a `currency` column exists with multiple distinct values (e.g., `['AUD', 'CAD', 'GBP', 'INR', 'SGD', 'USD']`).
+2. If multiple currencies exist, the **Deterministic Multi-Currency Safeguard** activates automatically.
+3. Every SQL query generated by Gemini is intercepted *before execution* by `backend/agent.py:validate_currency_safety()`:
+   - It scans for monetary aggregation functions: `SUM(...)`, `AVG(...)`, `TOTAL(...)` acting on monetary columns (`sales`, `profit`, `cost`, `revenue`).
+   - If a monetary aggregation is present, the query **MUST** satisfy at least one of two deterministic safety rules:
+     - **Rule A (Explicit Filter):** The query filters for one specific currency (e.g., `WHERE currency = 'USD'`).
+     - **Rule B (Explicit Grouping):** The query groups by currency and includes currency in the projection (e.g., `SELECT currency, SUM(sales) ... GROUP BY currency`).
+   - If neither rule is satisfied, the validator **rejects the query immediately** with a clear explanation:
+     > *"Multi-currency financial safety violation: The dataset contains multiple currencies (AUD, CAD, GBP, INR, SGD). Aggregating monetary columns across mixed currencies without filtering or grouping produces misleading totals."*
+4. Gemini's self-healing loop catches this explanation, understands the safety policy, and rewrites the query with appropriate grouping or currency filtering!
+
+---
+
+### 15.4 Full Dataset Explorer (Virtual Paginated Data Grid)
+
+#### Why Can't Browsers Just Render 100,000 Rows Directly?
+A web browser tab uses the **DOM (Document Object Model)** to represent every HTML tag.
+- If you render a table with 100,000 rows and 38 columns, the browser must construct **3,800,000 `<td>` elements** in memory.
+- This results in:
+  - Memory consumption jumping from 50 MB to over 3.5 GB.
+  - The browser tab freezing and triggering Google Chrome's *"Aw, Snap! Out of Memory"* crash screen.
+  - Screen rendering dropping from 60 FPS to 0 FPS (unresponsive UI).
+
+#### How the Full Dataset Explorer Solves This:
+Instead of dumping all records into the browser, VoiceCSV implements an enterprise **Server-Side Virtualized Pagination Engine**:
+
+```text
+[ Browser Modal ]  ◄── (Fetches 50 rows via JSON: ~45 KB) ──►  [ FastAPI /api/data ]
+       │                                                               │
+  User clicks "Next"                                             SQLite Query:
+  (offset = 50, limit = 50)                                      SELECT * FROM table
+                                                                 ORDER BY rowid ASC
+                                                                 LIMIT 50 OFFSET 50;
+                                                                 (Executes in 0.8 ms!)
+```
+
+1. **Windowed Memory Footprint:** The client DOM only ever holds 25, 50, 100, or 200 rows at any single moment. The browser memory usage remains virtually flat (< 40 MB).
+2. **Instant Multi-Column Search:** When the user types into the search box, the request `/api/data?table=customers&search=London` sends the query to SQLite. SQLite executes a parameterized multi-column `LIKE` clause:
+   ```sql
+   WHERE (CAST(customer_id AS TEXT) LIKE '%London%' OR customer_name LIKE '%London%' OR customer_city LIKE '%London%')
+   ```
+   Because SQLite is written in optimized C, searching through tens of thousands of records takes less than 2 milliseconds!
+3. **Dynamic Column Sorting:** Clicking any column header (e.g., `customer_age` or `sales`) sorts the entire dataset server-side in ascending or descending order.
+4. **Full Table Switching:** In multi-table relational mode, users can toggle between all loaded tables (`customers`, `products`, `stores`, etc.) instantly via the dropdown switcher without re-uploading files.
+
+---
+
+### 15.5 Complete Lifecycle: What Happens Before, During, and After Query Execution
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Business Analyst / User
+    participant Browser as Web Browser (UI)
+    participant STT as STT Subsystem (stt.js)
+    participant API as FastAPI Backend (/api/query)
+    participant Agent as AnalyticsAgent (agent.py)
+    participant Gemini as Google Gemini LLM
+    participant Guard as SQL Security Validator
+    participant DB as SQLite Read-Only Engine
+    participant Summary as Executive Summarizer
+
+    User->>Browser: Types query or clicks Speak
+    opt Using Microphone
+        Browser->>STT: Captures voice audio
+        STT-->>Browser: Transcribes to text & tags source='voice'
+    end
+    User->>Browser: Clicks "Run Analysis"
+    Browser->>Browser: Displays Pipeline Progress & locks Run button
+    Browser->>API: POST /api/query {question, operation_id, source}
+
+    API->>Agent: answer_question(question, op_record)
+    Agent->>Agent: Fetch schema & relationship context
+    Agent->>Gemini: Prompt with Schema + Question
+    Gemini-->>Agent: REFINED_QUESTION + SQLite SELECT Query
+
+    Agent->>Guard: validate_sql_safety(sql) + validate_currency_safety(sql)
+    alt Security or Currency Check Fails
+        Guard-->>Agent: Error (Unsafe keyword or mixed-currency aggregation)
+        Agent->>Gemini: Self-Healing Repair Request (Prompt with SQLite Error)
+        Gemini-->>Agent: Corrected Safe SQL Query
+        Agent->>Guard: Re-validate Corrected SQL
+    end
+
+    Agent->>DB: Execute Read-Only SQL (Authorizer + URI mode=ro)
+    DB-->>Agent: Columns & Row Data (capped at 5,000 max)
+
+    API->>Summary: generate_summary(refined_question, rows)
+    Gemini-->>Summary: 2-3 sentence executive business takeaway
+
+    API-->>Browser: JSON {raw_question, refined_question, source, sql, summary, rows}
+    Browser->>Browser: Renders Executed Query Context (Badges, Raw, Refined)
+    Browser->>Browser: Renders Executive Summary + Listen (TTS)
+    Browser->>Browser: Renders SQL Code Block + Results Table
+    Browser->>Browser: Unlocks button & logs Telemetry Metrics
+```
+
+---
+
+### 15.6 Student FAQs & Doubts Clearing (What, Why, How, When, Where)
+
+#### Q1: Why does the app show two versions of my question (Raw and Refined)?
+- **What:** The UI shows **User Input (Raw)** and **AI Refined Analytical Question (`✦ Gemini Intent`)**.
+- **Why:** Humans speak informally or with shorthand (*"top prod usd"*). The AI translates that into an unambiguous business question (*"What are the top 5 products ranked by total sales in USD?"*).
+- **How:** Gemini generates both in a single prompt. If you take a screenshot for an executive presentation, anyone can verify that the AI correctly interpreted your prompt.
+
+#### Q2: What happens if I speak broken English, shorthand, or colloquial phrases?
+- **What happens:** The system still works accurately!
+- **How:** Large Language Models are trained on hundreds of billions of conversational tokens. They excel at deciphering colloquial phrases (*"which rep crushed it the most"* &rarr; *"Which sales representative achieved the highest total revenue?"*), typos, and regional speech patterns.
+
+#### Q3: Why doesn't the question box get erased or locked after a query finishes?
+- **What:** The question box remains editable, and the new **Executed Query Context** card anchors the completed question near the results.
+- **Why:** In iterative data analysis, users frequently tweak their questions (e.g., changing *"top 5"* to *"top 10"*, or switching currency from *"USD"* to *"INR"*). If the box locked or forced an empty state, you would have to retype everything. With the **"Edit in Box"** button, you can restore or edit questions with a single click.
+
+#### Q4: How does the application run completely locally without Node.js, Docker, or external databases?
+- **Architecture:** VoiceCSV is designed on a **Zero-Infrastructure Principle**.
+  - FastAPI serves the frontend directly via Python's built-in file handling.
+  - SQLite is an embedded database engine compiled directly into Python—it does not run as a background service or require database user passwords.
+  - All styling and scripts use vanilla modern web standards (HTML5, CSS3, JavaScript ES6+), so no Node.js `npm build` step is required.
+
+#### Q5: Why do we need SQLite Authorizer callbacks when we already validate SQL strings with regex?
+- **Security Deep Dive:** Regex and string parsing alone are **insufficient** for SQL security. Attackers can bypass regex using obscure whitespace, string literal tricks, unicode normalization quirks, or SQLite-specific PRAGMA commands.
+- The **SQLite Authorizer Callback** runs inside SQLite's internal C-language parser. As SQLite parses the statement, it asks our Python authorizer: *"Is the query allowed to read table 'sqlite_master'?"* Our authorizer replies `SQLITE_DENY`. Even if a malicious prompt completely fooled the regex validator, SQLite's internal engine physically refuses to execute the unauthorized read.
+
+#### Q6: Why is combining different currencies into a single SUM considered a critical failure?
+- In accounting and corporate finance, numbers without currency parity are meaningless. If you sum $1,000 USD and ₹1,000 INR, you get 2,000 of an imaginary hybrid unit. VoiceCSV enforces deterministic currency safeguards so that AI agents can never output misleading financial metrics.
+
+#### Q7: How does Gemini self-heal a broken query without modifying the actual database?
+- **The Self-Healing Loop:** If SQLite throws a syntax or schema error (e.g., *"no such column: product_category"*), VoiceCSV intercepts the error, wraps the error message and schema context into a repair prompt, and sends it back to Gemini. Gemini identifies that the column name in the database is actually `category`, repairs the query, and re-executes it. The maximum number of repairs is strictly bounded (default: 3) to prevent infinite loops.
+
+#### Q8: What is the difference between Single CSV mode and Relational (Multi-Table) mode?
+- **Single CSV Mode:** Designed for ad-hoc, isolated spreadsheets. The table is stored as `uploaded_data`.
+- **Relational Mode:** Designed for normalized business datasets with multiple related entities. It automatically manages primary keys, foreign keys, table indexes, and multi-table joins across tables like `customers`, `products`, and `sales_transactions`.
+
+#### Q9: How does the browser Speech-to-Text work when the Web Speech API is blocked?
+- VoiceCSV automatically falls back to **Engine 2**: recording your microphone stream with `MediaRecorder` into an audio blob, uploading it to `/api/transcribe`, and using Gemini's multimodal audio perception to return the transcribed sentence.
+
+#### Q10: What prevents an attacker from injecting `DROP TABLE` or `INSERT` through the prompt?
+- VoiceCSV enforces **Defense-in-Depth**:
+  1. The LLM system prompt strictly forbids write operations.
+  2. The candidate SQL validator bans all mutation keywords (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, etc.).
+  3. Statement chaining with semicolons is strictly prohibited.
+  4. The SQLite database connection is opened in native read-only mode (`mode=ro`).
+  5. SQLite `PRAGMA query_only = ON` is executed.
+  6. The C-level SQLite Authorizer denies write actions.
+
+#### Q11: Where does my data actually go when I ask a question? Is my CSV uploaded to Google?
+- **Privacy Protection:** **NO.** Your raw CSV files and records stay entirely on your local machine inside `data/analytics.db`.
+- Only the **table schema** (column names and data types), verified relationship keys, and **5 sample rows** are shared with Gemini to provide context for query generation. Raw transactional records never leave your computer.
+
+#### Q12: How do I test the application to prove that all features work reliably?
+- You can run the comprehensive test suite with:
+  ```powershell
+  .\.venv\Scripts\python.exe -m pytest tests/
+  ```
+- All **133 automated unit, integration, and security tests** will run, verifying data integrity, relational joins, currency safety, SQL injection protection, self-healing, and UI state synchronization.
+

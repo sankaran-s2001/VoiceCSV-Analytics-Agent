@@ -8,6 +8,45 @@ document.addEventListener('DOMContentLoaded', () => {
   const serverBadge = document.getElementById('serverBadge');
   const geminiBadge = document.getElementById('geminiBadge');
   const datasetBadge = document.getElementById('datasetBadge');
+  const workspaceModeBadge = document.getElementById('workspaceModeBadge');
+
+  // Mode Switcher Elements
+  const modeSingleTabBtn = document.getElementById('modeSingleTabBtn');
+  const modeRelationalTabBtn = document.getElementById('modeRelationalTabBtn');
+  const singleUploadContainer = document.getElementById('singleUploadContainer');
+  const relationalUploadContainer = document.getElementById('relationalUploadContainer');
+
+  // Relational Upload Elements
+  const loadBundledSampleBtn = document.getElementById('loadBundledSampleBtn');
+  const relationalFileInput = document.getElementById('relationalFileInput');
+  const browseRelationalBtn = document.getElementById('browseRelationalBtn');
+  const relationalDropZone = document.getElementById('relationalDropZone');
+  const relationalUploadProgress = document.getElementById('relationalUploadProgress');
+  const relationalUploadProgressText = document.getElementById('relationalUploadProgressText');
+  const relationalPipelineSteps = document.getElementById('relationalPipelineSteps');
+  const relationalQueueContainer = document.getElementById('relationalQueueContainer');
+  const relationalQueueList = document.getElementById('relationalQueueList');
+  const queueCountBadge = document.getElementById('queueCountBadge');
+  const startRelationalImportBtn = document.getElementById('startRelationalImportBtn');
+  const clearRelationalQueueBtn = document.getElementById('clearRelationalQueueBtn');
+
+  // Overview Table Switcher & Relationships Card
+  const overviewTableSelectWrapper = document.getElementById('overviewTableSelectWrapper');
+  const overviewTableSelect = document.getElementById('overviewTableSelect');
+  const relationshipsCard = document.getElementById('relationshipsCard');
+  const relationshipsCountBadge = document.getElementById('relationshipsCountBadge');
+  const relTablesGrid = document.getElementById('relTablesGrid');
+  const relPathsList = document.getElementById('relPathsList');
+  const currencySafeguardBanner = document.getElementById('currencySafeguardBanner');
+  const currencySafeguardDesc = document.getElementById('currencySafeguardDesc');
+
+  // Query Prompt Chips
+  const chipsList = document.getElementById('chipsList');
+  const relationalChipsList = document.getElementById('relationalChipsList');
+
+  // Explorer Table Selector
+  const explorerTableSelectWrapper = document.getElementById('explorerTableSelectWrapper');
+  const explorerTableSelect = document.getElementById('explorerTableSelect');
 
   // DOM Elements - Upload
   const dropZone = document.getElementById('dropZone');
@@ -35,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const questionInput = document.getElementById('questionInput');
   const runQueryBtn = document.getElementById('runQueryBtn');
   const chipButtons = document.querySelectorAll('.chip-btn');
+  let currentInputSource = 'text'; // 'text' | 'voice' | 'chip'
 
   // DOM Elements - Pipeline & Alerts
   const executionPipeline = document.getElementById('executionPipeline');
@@ -47,6 +87,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // DOM Elements - Results
   const resultsSection = document.getElementById('resultsSection');
+  const queryContextCard = document.getElementById('queryContextCard');
+  const querySourceBadge = document.getElementById('querySourceBadge');
+  const querySourceIcon = document.getElementById('querySourceIcon');
+  const querySourceText = document.getElementById('querySourceText');
+  const copyQuestionBtn = document.getElementById('copyQuestionBtn');
+  const contextRawQuestion = document.getElementById('contextRawQuestion');
+  const contextRefinedQuestion = document.getElementById('contextRefinedQuestion');
+  const contextRawLabel = document.getElementById('contextRawLabel');
+  const contextRawHint = document.getElementById('contextRawHint');
   const executiveSummaryText = document.getElementById('executiveSummaryText');
   const sqlCode = document.getElementById('sqlCode');
   const copySqlBtn = document.getElementById('copySqlBtn');
@@ -133,6 +182,11 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPage = 1;
   const pageSize = 25;
   let pipelineTimer = null;
+  let activeWorkspaceMode = 'single';
+  let activeTablesList = [];
+  let currentOverviewTable = null;
+  let relationalSelectedFiles = [];
+  let expTable = null;
 
   // -------------------------------------------------------------
   // Initialization & Health Check
@@ -154,6 +208,16 @@ document.addEventListener('DOMContentLoaded', () => {
         setBadge(geminiBadge, 'AI: Not Configured', 'badge-pending');
       }
 
+      // Update Workspace Mode
+      activeWorkspaceMode = data.workspace_mode || 'single';
+      activeTablesList = data.active_tables || [];
+      if (workspaceModeBadge) {
+        const modeLabel = activeWorkspaceMode === 'relational'
+          ? `Mode: Relational (${activeTablesList.length} Tables)`
+          : 'Mode: Single CSV';
+        setBadge(workspaceModeBadge, modeLabel, activeWorkspaceMode === 'relational' ? 'badge-success' : 'badge-neutral');
+      }
+
       // Update Dataset status
       if (data.dataset_loaded) {
         const rowsFormatted = data.row_count ? Number(data.row_count).toLocaleString() : 'Active';
@@ -164,12 +228,43 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         setBadge(datasetBadge, 'No Dataset', 'badge-neutral');
       }
+
+      // Sync workspace mode tabs
+      syncWorkspaceModeUI(activeWorkspaceMode);
     } catch (err) {
       console.warn('Backend unavailable:', err);
       setBadge(serverBadge, 'Server Offline', 'badge-error');
       setBadge(geminiBadge, 'AI: Offline', 'badge-neutral');
       setBadge(datasetBadge, 'Database: Offline', 'badge-neutral');
+      if (workspaceModeBadge) setBadge(workspaceModeBadge, 'Mode: Offline', 'badge-neutral');
     }
+  }
+
+  function syncWorkspaceModeUI(mode) {
+    if (mode === 'relational') {
+      if (modeRelationalTabBtn) modeRelationalTabBtn.classList.add('active');
+      if (modeSingleTabBtn) modeSingleTabBtn.classList.remove('active');
+      if (relationalUploadContainer) relationalUploadContainer.classList.remove('hidden');
+      if (singleUploadContainer) singleUploadContainer.classList.add('hidden');
+      if (relationalChipsList) relationalChipsList.classList.remove('hidden');
+      if (chipsList) chipsList.classList.add('hidden');
+    } else {
+      if (modeSingleTabBtn) modeSingleTabBtn.classList.add('active');
+      if (modeRelationalTabBtn) modeRelationalTabBtn.classList.remove('active');
+      if (singleUploadContainer) singleUploadContainer.classList.remove('hidden');
+      if (relationalUploadContainer) relationalUploadContainer.classList.add('hidden');
+      if (chipsList) chipsList.classList.remove('hidden');
+      if (relationalChipsList) relationalChipsList.classList.add('hidden');
+    }
+  }
+
+  if (modeSingleTabBtn && modeRelationalTabBtn) {
+    modeSingleTabBtn.addEventListener('click', () => {
+      syncWorkspaceModeUI('single');
+    });
+    modeRelationalTabBtn.addEventListener('click', () => {
+      syncWorkspaceModeUI('relational');
+    });
   }
 
   function setBadge(el, text, className) {
@@ -212,18 +307,131 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  let tableSelectionSeq = 0;
+
+  async function loadTableSchema(tableName) {
+    if (!tableName) return;
+    const currentSeq = ++tableSelectionSeq;
+    try {
+      if (overviewRows) overviewRows.textContent = '...';
+      if (overviewCols) overviewCols.textContent = '...';
+
+      const res = await fetch(`/api/schema?table=${encodeURIComponent(tableName)}`);
+      if (!res.ok) {
+        showError(`Could not load schema for table "${tableName}"`);
+        return;
+      }
+      const schemaData = await res.json();
+      if (currentSeq !== tableSelectionSeq) return;
+
+      currentOverviewTable = tableName;
+      renderDatasetOverview(schemaData);
+    } catch (err) {
+      if (currentSeq !== tableSelectionSeq) return;
+      console.warn('Failed to switch table schema view:', err);
+      showError(`Failed to load table "${tableName}": ${err.message}`);
+    }
+  }
+
   function renderDatasetOverview(data) {
     if (!datasetOverviewCard) return;
 
     datasetOverviewCard.classList.remove('hidden');
+    currentOverviewTable = data.table_name || 'uploaded_data';
     if (overviewRows) overviewRows.textContent = Number(data.row_count || 0).toLocaleString();
     if (overviewCols) overviewCols.textContent = Number(data.column_count || 0).toLocaleString();
-    if (activeTableName) activeTableName.textContent = data.table_name || 'uploaded_data';
+
+    if (data.workspace_mode === 'relational') {
+      if (activeTableName) {
+        activeTableName.textContent = data.table_name || '';
+        activeTableName.classList.add('hidden');
+      }
+    } else {
+      if (activeTableName) {
+        activeTableName.textContent = data.table_name || 'uploaded_data';
+        activeTableName.classList.remove('hidden');
+      }
+    }
 
     if (data.filename && fileInfoBar) {
       selectedFileName.textContent = data.filename;
       selectedFileSize.textContent = `${Number(data.row_count).toLocaleString()} rows loaded`;
       fileInfoBar.classList.remove('hidden');
+    }
+
+    // Multi-table overview dropdown
+    if (data.workspace_mode === 'relational' && data.tables) {
+      if (overviewTableSelectWrapper) overviewTableSelectWrapper.classList.remove('hidden');
+      if (overviewTableSelect) {
+        const tableNames = Object.keys(data.tables);
+        if (overviewTableSelect.options.length !== tableNames.length) {
+          overviewTableSelect.innerHTML = '';
+          tableNames.forEach(tName => {
+            const opt = document.createElement('option');
+            opt.value = tName;
+            opt.textContent = `${tName} (${Number(data.tables[tName].row_count).toLocaleString()} rows)`;
+            if (tName === data.table_name) opt.selected = true;
+            overviewTableSelect.appendChild(opt);
+          });
+        }
+        overviewTableSelect.value = data.table_name || tableNames[0];
+      }
+    } else {
+      if (overviewTableSelectWrapper) overviewTableSelectWrapper.classList.add('hidden');
+    }
+
+    // Render Relationships Card for relational workspace
+    if (data.workspace_mode === 'relational') {
+      if (relationshipsCard) relationshipsCard.classList.remove('hidden');
+
+      // 1. Render active tables cards
+      if (relTablesGrid && data.tables) {
+        relTablesGrid.innerHTML = '';
+        Object.entries(data.tables).forEach(([tblName, tblInfo]) => {
+          const card = document.createElement('div');
+          card.className = 'rel-table-card';
+          card.innerHTML = `
+            <span class="rel-table-name" title="${tblName}">${tblName}</span>
+            <span class="rel-table-rows">${Number(tblInfo.row_count || 0).toLocaleString()} rows &bull; ${tblInfo.column_count} cols</span>
+            <span class="rel-table-pk">PK: ${tblInfo.primary_key || 'none'}</span>
+          `;
+          relTablesGrid.appendChild(card);
+        });
+      }
+
+      // 2. Render verified relationships
+      if (relPathsList) {
+        relPathsList.innerHTML = '';
+        const rels = data.relationships || [];
+        if (relationshipsCountBadge) relationshipsCountBadge.textContent = `${rels.length} Verified JOINs`;
+
+        rels.forEach(rel => {
+          const item = document.createElement('div');
+          item.className = 'rel-path-item';
+          const coveragePct = rel.coverage_pct !== undefined ? `${rel.coverage_pct}%` : '100%';
+          item.innerHTML = `
+            <div class="rel-path-header">
+              <span class="rel-path-expr">${rel.child_table}.${rel.child_column} &rarr; ${rel.parent_table}.${rel.parent_column}</span>
+              <span class="rel-path-badge verified">&check; Verified (${rel.status || 'verified'})</span>
+            </div>
+            <div class="rel-path-stats">
+              <span>Cardinality: ${rel.cardinality || 'N:1'}</span>
+              <span>Coverage: ${coveragePct}</span>
+              <span>Orphans: ${rel.orphan_keys || 0}</span>
+              <span>Parent Unique: ${rel.parent_pk_unique ? 'Yes' : 'No'}</span>
+            </div>
+          `;
+          relPathsList.appendChild(item);
+        });
+      }
+
+      // 3. Render currency safeguard info
+      if (currencySafeguardDesc) {
+        const currencies = data.currencies || ['USD', 'INR', 'AUD', 'CAD', 'GBP', 'SGD'];
+        currencySafeguardDesc.textContent = `Active Currencies: ${currencies.join(', ')}. Aggregations on monetary columns (sales, profit, cost) must filter or group by currency.`;
+      }
+    } else {
+      if (relationshipsCard) relationshipsCard.classList.add('hidden');
     }
 
     // Render Preview Table
@@ -255,6 +463,12 @@ document.addEventListener('DOMContentLoaded', () => {
         schemaListBody.appendChild(tr);
       });
     }
+  }
+
+  if (overviewTableSelect) {
+    overviewTableSelect.addEventListener('change', (e) => {
+      loadTableSchema(e.target.value);
+    });
   }
 
   // Tabs logic
@@ -396,6 +610,232 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // -------------------------------------------------------------
+  // Relational Dataset Handlers: Bundled Sample & Multi-Upload
+  // -------------------------------------------------------------
+
+  if (loadBundledSampleBtn) {
+    loadBundledSampleBtn.addEventListener('click', async () => {
+      hideError();
+      loadBundledSampleBtn.disabled = true;
+      const opId = generateOpId('sample');
+
+      if (relationalUploadProgress) {
+        relationalUploadProgress.classList.remove('hidden');
+        if (relationalUploadProgressText) relationalUploadProgressText.textContent = 'Loading bundled 5-table relational dataset...';
+        if (relationalPipelineSteps) {
+          relationalPipelineSteps.innerHTML = '';
+          relationalPipelineSteps.classList.remove('hidden');
+        }
+      }
+
+      const poller = createOperationPoller(opId, (opData) => {
+        if (opData.stages && relationalPipelineSteps) {
+          renderStages(relationalPipelineSteps, opData.stages);
+        }
+        const activeStage = opData.stages ? opData.stages.find(s => s.status === 'active') : null;
+        if (activeStage && relationalUploadProgressText) {
+          relationalUploadProgressText.textContent = `${activeStage.label}...`;
+        }
+      }, 120);
+
+      try {
+        const formData = new FormData();
+        formData.append('operation_id', opId);
+        const res = await fetch('/api/load-sample-relational', {
+          method: 'POST',
+          body: formData
+        });
+        poller.stop();
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || `Server error (${res.status})`);
+        }
+
+        const data = await res.json();
+        if (relationalUploadProgress) relationalUploadProgress.classList.add('hidden');
+        await checkHealth();
+        await loadActiveSchema();
+      } catch (err) {
+        poller.stop();
+        if (relationalUploadProgress) relationalUploadProgress.classList.add('hidden');
+        showError(`Failed to load bundled sample: ${err.message}`);
+      } finally {
+        loadBundledSampleBtn.disabled = false;
+      }
+    });
+  }
+
+  // Multi-CSV upload handlers
+  if (browseRelationalBtn && relationalFileInput) {
+    browseRelationalBtn.addEventListener('click', () => relationalFileInput.click());
+  }
+
+  if (relationalDropZone && relationalFileInput) {
+    relationalDropZone.addEventListener('click', (e) => {
+      if (e.target !== browseRelationalBtn) relationalFileInput.click();
+    });
+
+    ['dragenter', 'dragover'].forEach(event => {
+      relationalDropZone.addEventListener(event, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        relationalDropZone.classList.add('drag-over');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(event => {
+      relationalDropZone.addEventListener(event, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        relationalDropZone.classList.remove('drag-over');
+      });
+    });
+
+    relationalDropZone.addEventListener('drop', (e) => {
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        addFilesToRelationalQueue(Array.from(e.dataTransfer.files));
+      }
+    });
+
+    relationalFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        addFilesToRelationalQueue(Array.from(e.target.files));
+      }
+    });
+  }
+
+  function normalizeTableName(name) {
+    return name.replace(/\.csv$/i, '')
+      .toLowerCase()
+      .replace(/[\s\-\/\.]+/g, '_')
+      .replace(/[^a-z0-9_]/g, '')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'table';
+  }
+
+  function addFilesToRelationalQueue(files) {
+    hideError();
+    const validCsvs = files.filter(f => f.name.toLowerCase().endsWith('.csv'));
+    if (validCsvs.length === 0) {
+      showError('Please select CSV files (.csv).');
+      return;
+    }
+
+    validCsvs.forEach(newFile => {
+      if (!relationalSelectedFiles.some(f => f.name === newFile.name)) {
+        relationalSelectedFiles.push(newFile);
+      }
+    });
+
+    renderRelationalQueue();
+  }
+
+  function renderRelationalQueue() {
+    if (!relationalQueueContainer || !relationalQueueList) return;
+    if (relationalSelectedFiles.length === 0) {
+      relationalQueueContainer.classList.add('hidden');
+      return;
+    }
+
+    relationalQueueContainer.classList.remove('hidden');
+    if (queueCountBadge) queueCountBadge.textContent = `${relationalSelectedFiles.length} files`;
+    relationalQueueList.innerHTML = '';
+
+    relationalSelectedFiles.forEach((file, index) => {
+      const item = document.createElement('div');
+      item.className = 'queue-item';
+      const inferredTable = normalizeTableName(file.name);
+      item.innerHTML = `
+        <div>
+          <span class="queue-item-name">${file.name}</span> &rarr; <code>${inferredTable}</code>
+          <span class="queue-item-meta">(${formatBytes(file.size)})</span>
+        </div>
+        <button type="button" class="queue-remove-btn" title="Remove file" data-index="${index}">&times;</button>
+      `;
+      relationalQueueList.appendChild(item);
+    });
+
+    relationalQueueList.querySelectorAll('.queue-remove-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+        relationalSelectedFiles.splice(idx, 1);
+        renderRelationalQueue();
+      });
+    });
+  }
+
+  if (clearRelationalQueueBtn) {
+    clearRelationalQueueBtn.addEventListener('click', () => {
+      relationalSelectedFiles = [];
+      renderRelationalQueue();
+    });
+  }
+
+  if (startRelationalImportBtn) {
+    startRelationalImportBtn.addEventListener('click', async () => {
+      if (relationalSelectedFiles.length < 1) {
+        showError('Please select at least one CSV file to import.');
+        return;
+      }
+      hideError();
+      startRelationalImportBtn.disabled = true;
+      const opId = generateOpId('rel_import');
+
+      if (relationalUploadProgress) {
+        relationalUploadProgress.classList.remove('hidden');
+        if (relationalUploadProgressText) relationalUploadProgressText.textContent = 'Importing relational dataset...';
+        if (relationalPipelineSteps) {
+          relationalPipelineSteps.innerHTML = '';
+          relationalPipelineSteps.classList.remove('hidden');
+        }
+      }
+
+      const poller = createOperationPoller(opId, (opData) => {
+        if (opData.stages && relationalPipelineSteps) {
+          renderStages(relationalPipelineSteps, opData.stages);
+        }
+        const activeStage = opData.stages ? opData.stages.find(s => s.status === 'active') : null;
+        if (activeStage && relationalUploadProgressText) {
+          relationalUploadProgressText.textContent = `${activeStage.label}...`;
+        }
+      }, 120);
+
+      try {
+        const formData = new FormData();
+        formData.append('operation_id', opId);
+        relationalSelectedFiles.forEach(f => {
+          formData.append('files', f);
+        });
+
+        const res = await fetch('/api/upload-relational', {
+          method: 'POST',
+          body: formData
+        });
+        poller.stop();
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || `Server error (${res.status})`);
+        }
+
+        const data = await res.json();
+        relationalSelectedFiles = [];
+        renderRelationalQueue();
+        if (relationalUploadProgress) relationalUploadProgress.classList.add('hidden');
+        await checkHealth();
+        await loadActiveSchema();
+      } catch (err) {
+        poller.stop();
+        if (relationalUploadProgress) relationalUploadProgress.classList.add('hidden');
+        showError(`Relational import failed: ${err.message}`);
+      } finally {
+        startRelationalImportBtn.disabled = false;
+      }
+    });
+  }
+
+  // -------------------------------------------------------------
   // Query Execution & Pipeline Animation
   // -------------------------------------------------------------
 
@@ -404,7 +844,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (questionInput) {
+    questionInput.addEventListener('speech-transcribed', () => {
+      currentInputSource = 'voice';
+    });
+
+    questionInput.addEventListener('input', () => {
+      if (questionInput.dataset.source === 'voice') {
+        currentInputSource = 'voice';
+      } else {
+        currentInputSource = 'text';
+      }
+    });
+
     questionInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') {
+        currentInputSource = 'text';
+      }
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         submitQuestion();
@@ -417,11 +872,24 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       const q = btn.getAttribute('data-query');
       if (q && questionInput) {
+        currentInputSource = 'chip';
         questionInput.value = q;
         submitQuestion();
       }
     });
   });
+
+  if (copyQuestionBtn) {
+    copyQuestionBtn.addEventListener('click', () => {
+      const rawText = contextRawQuestion ? contextRawQuestion.textContent : '';
+      if (rawText && rawText !== '-' && questionInput) {
+        questionInput.value = rawText;
+        questionInput.focus();
+        currentInputSource = 'text';
+        questionInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  }
 
   async function submitQuestion() {
     hideError();
@@ -468,7 +936,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const response = await fetch('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, operation_id: opId })
+        body: JSON.stringify({
+          question,
+          operation_id: opId,
+          source: currentInputSource
+        })
       });
 
       const data = await response.json();
@@ -519,6 +991,46 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderQueryResults(data) {
     if (!resultsSection) return;
     resultsSection.classList.remove('hidden');
+
+    // 0. Executed Query Context
+    if (queryContextCard) {
+      queryContextCard.classList.remove('hidden');
+
+      const rawQ = data.raw_question || data.question || '';
+      const refinedQ = data.refined_question || data.question || '';
+      const source = data.source || 'text';
+
+      if (contextRawQuestion) {
+        contextRawQuestion.textContent = rawQ || '-';
+      }
+
+      if (contextRefinedQuestion) {
+        contextRefinedQuestion.textContent = refinedQ || '-';
+      }
+
+      if (querySourceBadge) {
+        querySourceBadge.className = 'query-source-badge';
+        if (source === 'voice') {
+          querySourceBadge.classList.add('badge-voice');
+          if (querySourceIcon) querySourceIcon.textContent = '🎤';
+          if (querySourceText) querySourceText.textContent = 'Spoken Voice';
+          if (contextRawLabel) contextRawLabel.textContent = 'Transcribed Spoken Audio (Raw)';
+          if (contextRawHint) contextRawHint.textContent = 'Directly as spoken';
+        } else if (source === 'chip') {
+          querySourceBadge.classList.add('badge-chip');
+          if (querySourceIcon) querySourceIcon.textContent = '⚡';
+          if (querySourceText) querySourceText.textContent = 'Quick Prompt';
+          if (contextRawLabel) contextRawLabel.textContent = 'Selected Prompt (Raw)';
+          if (contextRawHint) contextRawHint.textContent = 'From quick prompts';
+        } else {
+          querySourceBadge.classList.add('badge-text');
+          if (querySourceIcon) querySourceIcon.textContent = '⌨';
+          if (querySourceText) querySourceText.textContent = 'Typed Input';
+          if (contextRawLabel) contextRawLabel.textContent = 'User Input (Raw)';
+          if (contextRawHint) contextRawHint.textContent = 'Directly as typed';
+        }
+      }
+    }
 
     // 1. Executive Summary
     if (executiveSummaryText) {
@@ -658,11 +1170,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    rows.forEach(rowObj => {
+    rows.forEach(rowItem => {
       const tr = document.createElement('tr');
-      columns.forEach(colName => {
+      columns.forEach((colName, colIdx) => {
         const td = document.createElement('td');
-        const val = rowObj[colName];
+        const val = Array.isArray(rowItem) ? rowItem[colIdx] : (rowItem ? rowItem[colName] : null);
 
         if (val === null || val === undefined) {
           td.innerHTML = '<span class="null-cell">NULL</span>';
@@ -746,6 +1258,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!datasetExplorerModal) return;
     datasetExplorerModal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    if (activeWorkspaceMode === 'relational' && activeTablesList.length > 0) {
+      expTable = currentOverviewTable || activeTablesList[0];
+    } else {
+      expTable = null;
+    }
     fetchExplorerData();
     if (explorerSearchInput) {
       setTimeout(() => explorerSearchInput.focus(), 80);
@@ -778,6 +1295,9 @@ document.addEventListener('DOMContentLoaded', () => {
       limit: expLimit.toString()
     });
 
+    if (expTable) {
+      params.append('table', expTable);
+    }
     if (expSearch) {
       params.append('search', expSearch);
     }
@@ -823,6 +1343,27 @@ document.addEventListener('DOMContentLoaded', () => {
     if (explorerFileName) explorerFileName.textContent = data.filename || 'dataset.csv';
     if (expTotalRows) expTotalRows.textContent = Number(data.total_rows || 0).toLocaleString();
     if (expTotalCols) expTotalCols.textContent = Number(data.total_columns || 0).toLocaleString();
+
+    // Table Selector for Relational Workspace
+    if (activeWorkspaceMode === 'relational' && activeTablesList.length > 0) {
+      if (explorerTableSelectWrapper) explorerTableSelectWrapper.classList.remove('hidden');
+      if (explorerTableSelect) {
+        if (explorerTableSelect.options.length !== activeTablesList.length) {
+          explorerTableSelect.innerHTML = '';
+          activeTablesList.forEach(tbl => {
+            const opt = document.createElement('option');
+            opt.value = tbl;
+            opt.textContent = tbl;
+            if (tbl === (expTable || data.table_name)) opt.selected = true;
+            explorerTableSelect.appendChild(opt);
+          });
+        } else {
+          explorerTableSelect.value = expTable || data.table_name;
+        }
+      }
+    } else {
+      if (explorerTableSelectWrapper) explorerTableSelectWrapper.classList.add('hidden');
+    }
 
     // Search count badge & clear button
     if (expSearch) {
@@ -1064,6 +1605,16 @@ document.addEventListener('DOMContentLoaded', () => {
     explorerPageSize.addEventListener('change', () => {
       expLimit = parseInt(explorerPageSize.value, 10) || 50;
       expOffset = 0;
+      fetchExplorerData();
+    });
+  }
+
+  if (explorerTableSelect) {
+    explorerTableSelect.addEventListener('change', (e) => {
+      expTable = e.target.value;
+      expOffset = 0;
+      expSortBy = null;
+      expSortOrder = 'asc';
       fetchExplorerData();
     });
   }

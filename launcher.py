@@ -30,6 +30,14 @@ def is_port_in_use(host: str, port: int) -> bool:
         return s.connect_ex((host, port)) == 0
 
 
+def find_available_port(host: str, starting_port: int, max_attempts: int = 20) -> int:
+    """Find starting_port or the next available open port."""
+    for p in range(starting_port, starting_port + max_attempts):
+        if not is_port_in_use(host, p):
+            return p
+    return starting_port
+
+
 def wait_for_server_and_open_browser(url: str, timeout: int = 25):
     """Poll health endpoint until server is ready, then launch browser."""
     health_url = f"{url}/api/health"
@@ -56,31 +64,43 @@ def wait_for_server_and_open_browser(url: str, timeout: int = 25):
 
 def main():
     host = settings.host
-    port = settings.port
-    app_url = f"http://{host}:{port}"
-
-    print("=" * 60)
-    print("      VoiceCSV Analytics Agent - AI Business Intelligence      ")
-    print("=" * 60)
-    print(f"Target URL: {app_url}")
-    print(f"Gemini Configured: {'Yes (' + settings.gemini_model + ')' if settings.is_gemini_configured else 'No (set GOOGLE_API_KEY in .env)'}")
-    print(f"Database Path: {settings.resolved_db_path}")
-    print("=" * 60)
+    target_port = settings.port
+    app_url = f"http://{host}:{target_port}"
 
     # Check for port conflict
-    if is_port_in_use(host, port):
-        # Check if it's already VoiceCSV running
+    active_port = target_port
+    if is_port_in_use(host, target_port):
+        # Check if VoiceCSV is already running on this port
         try:
             with urlopen(f"{app_url}/api/health", timeout=1.5) as res:
                 if res.status == 200:
-                    print(f"\nVoiceCSV is already running on {app_url}!")
+                    print("=" * 60)
+                    print(f"[*] VoiceCSV is already running on {app_url}!")
+                    print("[*] Opening dashboard in your default browser...")
+                    print("=" * 60)
                     webbrowser.open(app_url)
                     return
         except Exception:
             pass
-        print(f"\n[ERROR] Port {port} on {host} is already in use by another application.")
-        print("Please terminate that application or change PORT in .env.")
-        sys.exit(1)
+
+        print(f"\n[NOTICE] Port {target_port} on {host} is currently in use by another program.")
+        fallback_port = find_available_port(host, target_port + 1)
+        if fallback_port != target_port and not is_port_in_use(host, fallback_port):
+            print(f"[*] Automatically switching to available open port: {fallback_port}")
+            active_port = fallback_port
+            app_url = f"http://{host}:{active_port}"
+        else:
+            print(f"\n[ERROR] Port {target_port} is in use and no alternative port was found.")
+            print("Please terminate the conflicting application or change PORT in .env.")
+            sys.exit(1)
+
+    print("=" * 60)
+    print("      VoiceCSV Analytics Agent - AI Business Intelligence      ")
+    print("=" * 60)
+    print(f"Target URL:        {app_url}")
+    print(f"Gemini Configured: {'Yes (' + settings.gemini_model + ')' if settings.is_gemini_configured else 'No (set GOOGLE_API_KEY in .env)'}")
+    print(f"Database Path:     {settings.resolved_db_path}")
+    print("=" * 60)
 
     # Start browser opener in background daemon thread
     browser_thread = threading.Thread(
@@ -95,14 +115,14 @@ def main():
         config = uvicorn.Config(
             app="backend.main:app",
             host=host,
-            port=port,
+            port=active_port,
             log_level="info",
             access_log=True
         )
         server = uvicorn.Server(config)
         server.run()
     except KeyboardInterrupt:
-        print("\nStopping VoiceCSV Analytics Agent server... Done.")
+        print("\n[*] Stopping VoiceCSV Analytics Agent server... Done.")
     except Exception as e:
         logger.error("Failed to run server: %s", e)
         sys.exit(1)
