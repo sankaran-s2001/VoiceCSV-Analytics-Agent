@@ -36,6 +36,14 @@ def test_extract_clean_sql():
     )
     assert extract_clean_sql(with_refined) == "SELECT category, SUM(sales) FROM sales_transactions WHERE currency = 'USD' GROUP BY category LIMIT 5"
 
+    # CRITICAL: SQL ending with a quoted string literal must NOT have its closing quote stripped
+    literal_end = "SELECT * FROM products WHERE brand = 'Philips'"
+    assert extract_clean_sql(literal_end) == "SELECT * FROM products WHERE brand = 'Philips'"
+
+    # Enclosing quotes wrapping entire query SHOULD be stripped
+    assert extract_clean_sql('"SELECT 1"') == "SELECT 1"
+    assert extract_clean_sql("'SELECT 1'") == "SELECT 1"
+
 
 def test_validate_sql_safety_valid():
     # Standard SELECT

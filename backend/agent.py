@@ -74,8 +74,11 @@ def extract_clean_sql(raw_output: str) -> str:
     if match:
         text = match.group(1).strip()
         
-    # Remove leading/trailing quotes or backticks
-    text = text.strip('`"\'').strip()
+    # Remove outer enclosing quotes or backticks ONLY if they wrap the entire query
+    for q in ('"""', "'''", "`", '"', "'"):
+        if text.startswith(q) and text.endswith(q) and len(text) >= 2 * len(q):
+            text = text[len(q):-len(q)].strip()
+            break
     
     # Strip any trailing semicolon
     if text.endswith(';'):
